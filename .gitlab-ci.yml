@@ -4,6 +4,12 @@
 # composition below. The public fallback for a different GitLab instance is
 # documented in docs/ci-cd.md; it does not depend on this private include.
 #
+# MR pipelines deliberately do not start a container builder. The shared
+# unprivileged Kubernetes runner pool cannot start rootlesskit, so MRs use a
+# static Dockerfile lint. The protected default branch builds with Docker-in-Docker
+# on the dedicated privileged runner and smoke-tests that exact local image in
+# the same job, avoiding an artifact upload or a second build.
+#
 # Launch Sequence is pinned to an immutable commit. Update the pin deliberately
 # after reading its changelog and running its consumer linter.
 
@@ -103,60 +109,29 @@ database-integration:
     - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
-# Build the Dockerfile for merge requests without privileged execution or
-# registry credentials. No image artifact is exported from these jobs.
-container-build-mr:
+# Check the Dockerfile on merge requests without privileged execution or
+# registry credentials. A static lint catches syntax and common image mistakes
+# while keeping untrusted code on an unprivileged runner. A full
+# image build is intentionally deferred to the protected default branch.
+dockerfile-lint-mr:
   stage: build
   image:
-    name: '${IMAGE_REGISTRY}/dockerhub-proxy/moby/buildkit:v0.27.1-rootless'
+    name: '${IMAGE_REGISTRY}/dockerhub-proxy/hadolint/hadolint:v2.15.1-debian'
     entrypoint: ['']
-  variables:
-    BUILDKITD_FLAGS: '--oci-worker-no-process-sandbox'
   before_script: []
   script:
-    - >-
-      buildctl-daemonless.sh build
-      --frontend dockerfile.v0
-      --local context=.
-      --local dockerfile=.
-      --opt "build-arg:BUN_IMAGE=${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim"
-      --output type=cacheonly
+    - hadolint --version
+    - hadolint --failure-threshold warning Dockerfile
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
 
-# Build one Docker-format image archive on the default branch. The downstream
-# protected smoke job tests this exact artifact; it is never pushed to a registry.
-container-build:
-  stage: build
-  image:
-    name: '${IMAGE_REGISTRY}/dockerhub-proxy/moby/buildkit:v0.27.1-rootless'
-    entrypoint: ['']
-  variables:
-    BUILDKITD_FLAGS: '--oci-worker-no-process-sandbox'
-  before_script: []
-  script:
-    - >-
-      buildctl-daemonless.sh build
-      --frontend dockerfile.v0
-      --local context=.
-      --local dockerfile=.
-      --opt "build-arg:BUN_IMAGE=${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim"
-      --output "type=docker,name=phantoms-smoke:${CI_COMMIT_SHA},dest=container-image.tar"
-  artifacts:
-    paths:
-      - container-image.tar
-    expire_in: 1 day
-  rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-
-# Build the production image and run it without publishing it or exposing
-# registry credentials. This privileged runner is restricted to protected refs.
+# Build the production image and smoke-test that exact local image without
+# publishing it or exposing registry credentials. This privileged runner is
+# restricted to protected refs. Keeping build and smoke in one job avoids a
+# large Docker archive crossing the GitLab artifact store.
 container-build-smoke:
   stage: build
-  needs:
-    - job: container-build
-      artifacts: true
   image: '${IMAGE_REGISTRY}/dockerhub-proxy/library/docker:29.8.1-cli'
   services:
     - name: '${IMAGE_REGISTRY}/dockerhub-proxy/library/docker:29.8.1-dind'
@@ -171,7 +146,10 @@ container-build-smoke:
   before_script: []
   script:
     - docker info
-    - docker load --input container-image.tar
+    - >-
+      docker build --pull
+      --build-arg BUN_IMAGE=${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim
+      --tag "phantoms-smoke:${CI_COMMIT_SHA}" .
     - docker run --detach --name phantoms-smoke --env DATABASE_URL=postgres://phantoms:ci-only@127.0.0.1:5432/phantoms --env API_BEARER_TOKEN=ci-smoke "phantoms-smoke:${CI_COMMIT_SHA}"
     - |
       docker exec phantoms-smoke bun -e '

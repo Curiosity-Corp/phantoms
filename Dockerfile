@@ -31,5 +31,5 @@ COPY --from=build --chown=bun:bun /app/apps/web/out ./apps/web/out
 USER bun
 EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
-  CMD bun -e 'fetch("http://127.0.0.1:4000/healthz").then((response) => { if (!response.ok) throw new Error("unhealthy"); })'
+  CMD ["bun", "-e", "fetch('http://127.0.0.1:4000/healthz').then((response) => { if (!response.ok) throw new Error('unhealthy'); })"]
 CMD ["bun", "run", "apps/api/dist/server.js"]

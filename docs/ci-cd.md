@@ -45,11 +45,14 @@ That SHA is the resolved `origin/main` tip inspected on 2026-10-01. The
 composition is `pipelines/validate-only.yml` because this learning repository
 does not publish an image or deploy an application. It supplies shared
 preflight and SAST jobs; consumer-owned jobs add Bun dependency auditing, a
-disposable PostgreSQL integration test, and a container build check for merge
-requests. Merge requests use rootless BuildKit without registry credentials.
-The protected default branch exports a short-lived Docker archive; a privileged
-smoke job runs that exact artifact and removes the local image without
-publishing it.
+disposable PostgreSQL integration test, and a Dockerfile lint for merge
+requests. Merge requests stay on eligible unprivileged runners and
+do not start a container builder. The protected default branch builds with
+Docker-in-Docker on the `privileged` runner and smoke-tests that exact local
+image in the same job, avoiding a large Docker archive in the GitLab artifact
+store. Untagged validation jobs may use any eligible unprivileged runner;
+configure runner tags and protection in GitLab so they cannot land on a
+privileged host.
 
 The source configuration sets `SAST_STRICT` to `true`, overriding Launch
 Sequence's advisory default, and runs a separate blocking Gitleaks job. Its
@@ -135,7 +138,7 @@ artifact and report handoffs through the DAG.
 If the private Launch Sequence project is unavailable, replace the private
 `include` with this self-contained GitLab configuration. It keeps Bun as the
 only JavaScript runtime. Pin or update each image deliberately; this October
-2026 example uses Bun 1.4.2 and Docker 29.8.1.
+2026 example uses Bun 1.4.2, Hadolint 2.15.1, and Docker 29.8.1.
 
 ```yaml
 image: oven/bun:1.4.2-slim
@@ -221,54 +224,21 @@ secret-scan:
   script:
     - gitleaks detect --source . --no-banner --redact
 
-container-build-mr:
+dockerfile-lint-mr:
   stage: build
   image:
-    name: moby/buildkit:v0.27.1-rootless
+    name: hadolint/hadolint:v2.15.1-debian
     entrypoint: ['']
-  variables:
-    BUILDKITD_FLAGS: '--oci-worker-no-process-sandbox'
   before_script: []
   script:
-    - >-
-      buildctl-daemonless.sh build
-      --frontend dockerfile.v0
-      --local context=.
-      --local dockerfile=.
-      --opt build-arg:BUN_IMAGE=oven/bun:1.4.2-slim
-      --output type=cacheonly
+    - hadolint --version
+    - hadolint --failure-threshold warning Dockerfile
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
 
-container-build:
-  stage: build
-  image:
-    name: moby/buildkit:v0.27.1-rootless
-    entrypoint: ['']
-  variables:
-    BUILDKITD_FLAGS: '--oci-worker-no-process-sandbox'
-  before_script: []
-  script:
-    - >-
-      buildctl-daemonless.sh build
-      --frontend dockerfile.v0
-      --local context=.
-      --local dockerfile=.
-      --opt build-arg:BUN_IMAGE=oven/bun:1.4.2-slim
-      --output "type=docker,name=phantoms-smoke:${CI_COMMIT_SHA},dest=container-image.tar"
-  artifacts:
-    paths:
-      - container-image.tar
-    expire_in: 1 day
-  rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-
 container-build-smoke:
   stage: build
-  needs:
-    - job: container-build
-      artifacts: true
   image: docker:29.8.1-cli
   services:
     - name: docker:29.8.1-dind
@@ -283,7 +253,10 @@ container-build-smoke:
   before_script: []
   script:
     - docker info
-    - docker load --input container-image.tar
+    - >-
+      docker build --pull
+      --build-arg BUN_IMAGE=oven/bun:1.4.2-slim
+      --tag "phantoms-smoke:${CI_COMMIT_SHA}" .
     - docker run --detach --name phantoms-smoke --env DATABASE_URL=postgres://phantoms:ci-only@127.0.0.1:5432/phantoms --env API_BEARER_TOKEN=ci-smoke "phantoms-smoke:${CI_COMMIT_SHA}"
     - |
       docker exec phantoms-smoke bun -e '
@@ -314,10 +287,11 @@ container-build-smoke:
 ```
 
 Protect the default branch and configure a protected runner tagged `privileged`
-for Docker-in-Docker before enabling the runtime smoke job. Rootless BuildKit
-checks the Dockerfile on merge requests without publishing an image; on the
-default branch it exports a one-day Docker archive, which the protected smoke
-job loads and tests. Neither job signs or deploys the image. For an app with a
+for Docker-in-Docker before enabling the runtime smoke job. Merge requests use
+Hadolint for static Dockerfile validation because the available unprivileged
+Kubernetes runners cannot start rootlesskit. The protected default branch builds and
+smoke-tests the exact local image in one job, avoiding a large Docker archive.
+Neither job signs or deploys the image. For an app with a
 real deployment target, add image and dependency scanning, SBOM generation,
 provenance and signature verification, protected deployment, and post-deploy
 health and rollback checks. Deploy by immutable digest only after all required
