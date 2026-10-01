@@ -39,28 +39,33 @@ include:
   - project: 'DroidOpsInc/launch-sequence'
     ref: b5afba2af206d84ee58315122977b11266f0ff1e
     file: '/pipelines/validate-only.yml'
+  - project: 'DroidOpsInc/launch-sequence'
+    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    file: '/jobs/build-buildkit.yml'
+  - project: 'DroidOpsInc/launch-sequence'
+    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    file: '/jobs/regression-container-image.yml'
 ```
 
 That SHA is the resolved `origin/main` tip inspected on 2026-10-01. The
-composition is `pipelines/validate-only.yml` because this learning repository
-does not publish an image or deploy an application. It supplies shared
-preflight and SAST jobs; consumer-owned jobs add Bun dependency auditing, a
-disposable PostgreSQL integration test, and a Dockerfile lint for merge
-requests. Merge requests stay on eligible unprivileged runners and
-do not start a container builder. The protected default branch builds with
-Docker-in-Docker on the `privileged` runner and smoke-tests that exact local
-image in the same job, avoiding a large Docker archive in the GitLab artifact
-store. Untagged validation jobs may use any eligible unprivileged runner;
-configure runner tags and protection in GitLab so they cannot land on a
-privileged host.
+`validate-only.yml` composition supplies shared preflight and SAST jobs;
+consumer-owned jobs add Bun dependency auditing, a disposable PostgreSQL
+integration test, and a Dockerfile lint for merge requests. Merge requests
+stay on eligible unprivileged runners and do not start a container builder.
+On protected `main`, the Launch Sequence BuildKit dispatcher builds a
+commit-tagged image in an isolated Kubernetes job and publishes it to private
+Harbor. The regression dispatcher runs the app inside that exact image digest
+and checks its static page, health route, and authentication boundary. The
+pipeline does not update a floating `latest` tag or deploy the image. Untagged
+validation jobs may use any eligible unprivileged runner; configure runner
+tags and protection in GitLab so they cannot land on a privileged host.
 
 The source configuration sets `SAST_STRICT` to `true`, overriding Launch
 Sequence's advisory default, and runs a separate blocking Gitleaks job. Its
 `bun audit --audit-level high` job checks the locked dependency graph. The
-Docker-in-Docker smoke job runs only on the protected default branch and uses a
-runner tagged `privileged`; merge requests never receive privileged
-execution. Protect `main` and restrict that runner to protected refs before
-enabling the job. Source container images use the internal Harbor Docker Hub
+BuildKit dispatcher generates an SBOM and signs the image when the protected
+Notation key is configured; the commit digest is passed to regression rather
+than rebuilding. Source container images use the internal Harbor Docker Hub
 proxy, including the pinned Semgrep 1.178.0 and Gitleaks 8.30.1 scanners.
 
 The source project is private. Do not copy its templates into a public repo or
@@ -286,12 +291,12 @@ container-build-smoke:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 ```
 
-Protect the default branch and configure a protected runner tagged `privileged`
-for Docker-in-Docker before enabling the runtime smoke job. Merge requests use
-Hadolint for static Dockerfile validation because the available unprivileged
-Kubernetes runners cannot start rootlesskit. The protected default branch builds and
-smoke-tests the exact local image in one job, avoiding a large Docker archive.
-Neither job signs or deploys the image. For an app with a
+For this standalone fallback, protect the default branch and configure a
+protected runner tagged `privileged` for Docker-in-Docker before enabling the
+runtime smoke job. Merge requests use Hadolint for static Dockerfile
+validation. The protected default branch builds and smoke-tests the exact
+local image in one job, avoiding a large Docker archive. Neither job signs or
+deploys the image. For an app with a
 real deployment target, add image and dependency scanning, SBOM generation,
 provenance and signature verification, protected deployment, and post-deploy
 health and rollback checks. Deploy by immutable digest only after all required

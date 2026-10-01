@@ -6,9 +6,10 @@
 #
 # MR pipelines deliberately do not start a container builder. The shared
 # unprivileged Kubernetes runner pool cannot start rootlesskit, so MRs use a
-# static Dockerfile lint. The protected default branch builds with Docker-in-Docker
-# on the dedicated privileged runner and smoke-tests that exact local image in
-# the same job, avoiding an artifact upload or a second build.
+# static Dockerfile lint. The protected default branch builds with the
+# Launch Sequence Kubernetes BuildKit job and smoke-tests the exact pushed
+# digest in an isolated Kubernetes regression job. No DinD service runs in
+# the GitLab runner pod.
 #
 # Launch Sequence is pinned to an immutable commit. Update the pin deliberately
 # after reading its changelog and running its consumer linter.
@@ -24,6 +25,7 @@ stages:
   - preflight
   - security
   - build
+  - regression
   - deploy
 
 include:
@@ -32,6 +34,12 @@ include:
     # replacement has been reviewed and linted against this consumer.
     ref: b5afba2af206d84ee58315122977b11266f0ff1e
     file: '/pipelines/validate-only.yml'
+  - project: 'DroidOpsInc/launch-sequence'
+    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    file: '/jobs/build-buildkit.yml'
+  - project: 'DroidOpsInc/launch-sequence'
+    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    file: '/jobs/regression-container-image.yml'
 
 variables:
   # The shared template defaults to a private Alpine utility image. This
@@ -49,6 +57,8 @@ variables:
     bun install --frozen-lockfile &&
     bun test &&
     bun run build
+  IMAGE_NAME: 'phantoms'
+  HARBOR_PROJECT: 'apps'
   NEXT_TELEMETRY_DISABLED: '1'
 
 # The shared SAST job defaults to advisory findings. Make source and secret
@@ -126,54 +136,23 @@ dockerfile-lint-mr:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
 
-# Build the production image and smoke-test that exact local image without
-# publishing it or exposing registry credentials. This privileged runner is
-# restricted to protected refs. Keeping build and smoke in one job avoids a
-# large Docker archive crossing the GitLab artifact store.
-container-build-smoke:
-  stage: build
-  image: '${IMAGE_REGISTRY}/dockerhub-proxy/library/docker:29.8.1-cli'
-  services:
-    - name: '${IMAGE_REGISTRY}/dockerhub-proxy/library/docker:29.8.1-dind'
-      alias: docker
-      variables:
-        HEALTHCHECK_TCP_PORT: '2375'
-  tags:
-    - privileged
+# Build in the shared rootless BuildKit Kubernetes dispatcher. It publishes
+# only the commit tag to private Harbor and exports the digest for regression.
+build:
+  extends: .build:buildkit
   variables:
-    DOCKER_HOST: 'tcp://docker:2375'
-    DOCKER_TLS_CERTDIR: ''
-  before_script: []
-  script:
-    - docker info
-    - >-
-      docker build --pull
-      --build-arg BUN_IMAGE=${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim
-      --tag "phantoms-smoke:${CI_COMMIT_SHA}" .
-    - docker run --detach --name phantoms-smoke --env DATABASE_URL=postgres://phantoms:ci-only@127.0.0.1:5432/phantoms --env API_BEARER_TOKEN=ci-smoke "phantoms-smoke:${CI_COMMIT_SHA}"
-    - |
-      docker exec phantoms-smoke bun -e '
-        const deadline = Date.now() + 30000;
-        let smokePassed = false;
-        while (Date.now() < deadline) {
-          try {
-            const web = await fetch("http://127.0.0.1:4000/");
-            const live = await fetch("http://127.0.0.1:4000/healthz");
-            const denied = await fetch("http://127.0.0.1:4000/api/tasks");
-            const page = await web.text();
-            if (web.ok && page.includes("PHANTOMS") && live.ok && denied.status === 401) {
-              console.info("container smoke passed: static page, health route, and auth boundary");
-              smokePassed = true;
-              break;
-            }
-          } catch {}
-          await Bun.sleep(500);
-        }
-        if (!smokePassed) throw new Error("container smoke failed or timed out");
-      '
-  after_script:
-    - docker logs phantoms-smoke || true
-    - docker rm --force phantoms-smoke || true
-    - docker image rm "phantoms-smoke:${CI_COMMIT_SHA}" || true
+    BUILD_ARGS: 'BUN_IMAGE=harbor.focuscell.org/dockerhub-proxy/oven/bun:1.4.2-slim'
+    PUSH_LATEST: 'false'
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# Run the app inside the exact built image and check its page, health route,
+# and unauthenticated API boundary in the isolated Launch Sequence job.
+container-build-smoke:
+  extends: .regression:container-image
+  variables:
+    REGRESSION_KIND: smoke
+    REGRESSION_TIMEOUT: '300'
+    SMOKE_COMMANDS: 'rm -rf /workspace/.git && bun scripts/container-smoke.ts'
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
