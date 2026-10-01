@@ -7,9 +7,9 @@
 # MR pipelines deliberately do not start a container builder. The shared
 # unprivileged Kubernetes runner pool cannot start rootlesskit, so MRs use a
 # static Dockerfile lint. The protected default branch builds with the
-# Launch Sequence Kubernetes BuildKit job and smoke-tests the exact pushed
-# digest in an isolated Kubernetes regression job. No DinD service runs in
-# the GitLab runner pod.
+# Launch Sequence Kubernetes BuildKit job, signs and verifies the image, then
+# smoke-tests the exact digest in an isolated Kubernetes regression job. No
+# DinD service runs in the GitLab runner pod.
 #
 # Launch Sequence is pinned to an immutable commit. Update the pin deliberately
 # after reading its changelog and running its consumer linter.
@@ -25,6 +25,8 @@ stages:
   - preflight
   - security
   - build
+  - sign
+  - attest
   - regression
   - deploy
 
@@ -37,6 +39,12 @@ include:
   - project: 'DroidOpsInc/launch-sequence'
     ref: b5afba2af206d84ee58315122977b11266f0ff1e
     file: '/jobs/build-buildkit.yml'
+  - project: 'DroidOpsInc/launch-sequence'
+    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    file: '/jobs/sign.yml'
+  - project: 'DroidOpsInc/launch-sequence'
+    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    file: '/jobs/signature-verify.yml'
   - project: 'DroidOpsInc/launch-sequence'
     ref: b5afba2af206d84ee58315122977b11266f0ff1e
     file: '/jobs/regression-container-image.yml'
@@ -137,19 +145,103 @@ dockerfile-lint-mr:
     - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
 
 # Build in the shared rootless BuildKit Kubernetes dispatcher. It publishes
-# only the commit tag to private Harbor and exports the digest for regression.
+# only a build-attempt-specific tag to private Harbor and exports its digest.
 build:
   extends: .build:buildkit
   variables:
     BUILD_ARGS: 'BUN_IMAGE=harbor.focuscell.org/dockerhub-proxy/oven/bun:1.4.2-slim'
+    # A new build attempt gets its own tag, so a manual retry cannot move the
+    # image reference already verified by an earlier attempt in this pipeline.
+    IMAGE_TAG: '${CI_COMMIT_SHORT_SHA}-${CI_PIPELINE_IID}-${CI_JOB_ID}'
+    BUILD_SIGN_WITH_NOTATION: 'false'
+    # The dedicated sign job owns signing credentials. Optional Kubernetes
+    # secretKeyRefs in BuildKit resolve to no credentials for this build pod.
+    NOTATION_SECRET: 'phantoms-build-no-signing-secret'
     PUSH_LATEST: 'false'
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
+# Sign the immutable digest from BuildKit with the protected Notation key.
+sign:
+  extends: .sign:notation
+  needs:
+    - job: build
+      artifacts: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# Verify both the signature and SBOM before running the image smoke test.
+signature-verify:
+  extends: .signature:verify
+  variables:
+    VERIFY_NAMESPACE: 'ci'
+  before_script:
+    # Resolve the exact tag exported by this build attempt.
+    - export IMAGE_TAG="$BUILT_IMAGE_TAG"
+  needs:
+    - job: build
+      artifacts: true
+    - job: sign
+      artifacts: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  after_script:
+    - |
+      VERIFY_K8S_JOB_NAME="verify-sig-${IMAGE_NAME}-${CI_COMMIT_SHORT_SHA}-p${CI_PIPELINE_IID}-j${CI_JOB_ID}"
+      printf 'VERIFY_K8S_JOB_NAME=%s\n' "$VERIFY_K8S_JOB_NAME" > signature-verify.env
+      printf 'EXPECTED_IMAGE_DIGEST=%s\n' "${BUILT_IMAGE_DIGEST:-}" >> signature-verify.env
+      kubectl logs -n "${VERIFY_NAMESPACE:-ci}" "job/${VERIFY_K8S_JOB_NAME}" --all-containers --tail=-1 2>&1 \
+        | grep -E 'Resolved digest:|Notation signature VERIFIED|SBOM attestation VERIFIED|WARNING: No CycloneDX|Verification Summary|Signature:|SBOM:' \
+        > signature-verify.log || true
+  artifacts:
+    when: always
+    paths:
+      - signature-verify.log
+    reports:
+      dotenv: signature-verify.env
+
+# Launch Sequence's verifier reports a missing CycloneDX SBOM as a warning.
+# Make the assurance blocking here and require that its build-tag lookup
+# resolved to the exact digest exported by BuildKit before smoke can start.
+attestation-gate:
+  stage: regression
+  image:
+    name: 'harbor.focuscell.org/dockerhub-proxy/alpine/k8s:1.31.13'
+  needs:
+    - job: build
+      artifacts: true
+    - job: signature-verify
+      artifacts: true
+  script:
+    - |
+      set -eu
+      test -s signature-verify.log
+      test -n "${BUILT_IMAGE_DIGEST:-}"
+      test "${EXPECTED_IMAGE_DIGEST:-}" = "$BUILT_IMAGE_DIGEST"
+      grep -F "Resolved digest: $BUILT_IMAGE_DIGEST" signature-verify.log
+      grep -F 'Notation signature VERIFIED on' signature-verify.log | grep -F "@$BUILT_IMAGE_DIGEST"
+      grep -F 'SBOM attestation VERIFIED' signature-verify.log
+      echo 'Signature and CycloneDX SBOM verified for the BuildKit digest.'
+      {
+        printf 'BUILT_IMAGE=%s\n' "$BUILT_IMAGE"
+        printf 'BUILT_IMAGE_REF=%s\n' "$BUILT_IMAGE_REF"
+        printf 'BUILT_IMAGE_DIGEST=%s\n' "$BUILT_IMAGE_DIGEST"
+        printf 'BUILT_IMAGE_REPOSITORY=%s\n' "$BUILT_IMAGE_REPOSITORY"
+        printf 'BUILT_IMAGE_TAG=%s\n' "$BUILT_IMAGE_TAG"
+      } > verified-image.env
+  artifacts:
+    reports:
+      dotenv: verified-image.env
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
 # Run the app inside the exact built image and check its page, health route,
-# and unauthenticated API boundary in the isolated Launch Sequence job.
+# and unauthenticated API boundary after signature and SBOM verification.
 container-build-smoke:
   extends: .regression:container-image
+  needs:
+    - job: attestation-gate
+      artifacts: true
   variables:
     REGRESSION_KIND: smoke
     REGRESSION_TIMEOUT: '300'

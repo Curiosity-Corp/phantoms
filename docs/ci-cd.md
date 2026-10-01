@@ -21,8 +21,8 @@ Use the following order for a real PHANTOMS application:
 4. Scan source and dependencies for secrets and known vulnerabilities.
 5. Build one immutable container image, identify it by digest, and generate an
    SBOM.
-6. Run browser tests against that same image.
-7. Sign and attest the image, then deploy only from a protected ref.
+6. Sign the immutable digest and verify its signature and SBOM.
+7. Run tests against that same image, then deploy only from a protected ref.
 8. Verify health, telemetry, and rollback behavior after deployment.
 
 Merge request jobs run with no production credentials. The protected default
@@ -44,6 +44,12 @@ include:
     file: '/jobs/build-buildkit.yml'
   - project: 'DroidOpsInc/launch-sequence'
     ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    file: '/jobs/sign.yml'
+  - project: 'DroidOpsInc/launch-sequence'
+    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    file: '/jobs/signature-verify.yml'
+  - project: 'DroidOpsInc/launch-sequence'
+    ref: b5afba2af206d84ee58315122977b11266f0ff1e
     file: '/jobs/regression-container-image.yml'
 ```
 
@@ -53,9 +59,14 @@ consumer-owned jobs add Bun dependency auditing, a disposable PostgreSQL
 integration test, and a Dockerfile lint for merge requests. Merge requests
 stay on eligible unprivileged runners and do not start a container builder.
 On protected `main`, the Launch Sequence BuildKit dispatcher builds a
-commit-tagged image in an isolated Kubernetes job and publishes it to private
-Harbor. The regression dispatcher runs the app inside that exact image digest
-and checks its static page, health route, and authentication boundary. The
+build-attempt-specific image tag in an isolated Kubernetes job and publishes
+it to private Harbor. A dedicated Notation job signs the immutable build
+digest with the protected signing key. A following verification job checks
+the image signature and discovers its SBOM. A blocking consumer gate requires
+the verifier's resolved digest to match BuildKit's exported digest and
+requires both checks to pass. The gate then exports the verified image
+reference; the regression dispatcher consumes that frozen reference and
+checks its static page, health route, and authentication boundary. The
 pipeline does not update a floating `latest` tag or deploy the image. Untagged
 validation jobs may use any eligible unprivileged runner; configure runner
 tags and protection in GitLab so they cannot land on a privileged host.
@@ -63,8 +74,11 @@ tags and protection in GitLab so they cannot land on a privileged host.
 The source configuration sets `SAST_STRICT` to `true`, overriding Launch
 Sequence's advisory default, and runs a separate blocking Gitleaks job. Its
 `bun audit --audit-level high` job checks the locked dependency graph. The
-BuildKit dispatcher generates an SBOM and signs the image when the protected
-Notation key is configured; the commit digest is passed to regression rather
+BuildKit SBOM generation is best-effort, so the blocking consumer gate also
+rejects a missing CycloneDX artifact. Dedicated Notation signing and
+verification jobs verify the signature, and the consumer gate requires the
+signature check, SBOM discovery, and digest comparison to pass before image
+smoke testing. The regression job receives the built image metadata rather
 than rebuilding. Source container images use the internal Harbor Docker Hub
 proxy, including the pinned Semgrep 1.178.0 and Gitleaks 8.30.1 scanners.
 

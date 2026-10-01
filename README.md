@@ -60,7 +60,7 @@ bun test
 bun run build
 ```
 
-Merge requests run the core checks, PostgreSQL integration tests, and blocking source and dependency scans through GitLab CI. The protected default branch also builds and smoke-tests the container without publishing it. See [CI/CD](docs/ci-cd.md) for Launch Sequence and the public GitLab baseline.
+Merge requests run the core checks, PostgreSQL integration tests, and blocking source and dependency scans through GitLab CI. On protected `main`, each build attempt publishes its own image tag to private Harbor and signs the exact build digest. A blocking gate requires signature verification, SBOM discovery, and a matching digest, then passes the verified image reference to smoke tests. It does not update a floating `latest` tag or deploy the image. See [CI/CD](docs/ci-cd.md) for Launch Sequence and the public GitLab baseline.
 
 ## Recommended versions
 
