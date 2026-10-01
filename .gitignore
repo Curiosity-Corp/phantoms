@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+.next/
+out/
+coverage/
+dist/
+node_modules/
+.turbo/
+*.log
+*.tsbuildinfo
+playwright-report/
+test-results/
+output/playwright/

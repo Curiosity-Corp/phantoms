@@ -1,0 +1,201 @@
+# PHANTOMS learning repository: Bun-first validation on GitLab.
+#
+# The source project is private and consumes the internal Launch Sequence
+# composition below. The public fallback for a different GitLab instance is
+# documented in docs/ci-cd.md; it does not depend on this private include.
+#
+# Launch Sequence is pinned to an immutable commit. Update the pin deliberately
+# after reading its changelog and running its consumer linter.
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - when: never
+
+stages:
+  - preflight
+  - security
+  - build
+  - deploy
+
+include:
+  - project: 'DroidOpsInc/launch-sequence'
+    # Resolved 2026-10-01 from origin/main. Keep this SHA immutable until the
+    # replacement has been reviewed and linted against this consumer.
+    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    file: '/pipelines/validate-only.yml'
+
+variables:
+  # The shared template defaults to a private Alpine utility image. This
+  # consumer uses Bun as its only JavaScript runtime.
+  # The Harbor Docker Hub proxy is used by the internal runners; public users
+  # should use oven/bun:1.4.2-slim in the fallback shown in docs/ci-cd.md.
+  PREFLIGHT_IMAGE: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
+  PREFLIGHT_REQUIRED_TOOLS: 'bun'
+  PREFLIGHT_COMMANDS: >-
+    bun install --frozen-lockfile &&
+    bun run lint &&
+    bun run typecheck &&
+    bun run db:check
+  TEST_COMMANDS: >-
+    bun install --frozen-lockfile &&
+    bun test &&
+    bun run build
+  NEXT_TELEMETRY_DISABLED: '1'
+
+# The shared SAST job defaults to advisory findings. Make source and secret
+# findings blocking for this learning repository.
+sast:
+  image:
+    name: '${IMAGE_REGISTRY}/dockerhub-proxy/semgrep/semgrep:1.178.0'
+    entrypoint: ['']
+  variables:
+    SAST_STRICT: 'true'
+    GITLEAKS_ENABLED: 'false'
+
+secret-scan:
+  stage: security
+  image:
+    name: '${IMAGE_REGISTRY}/dockerhub-proxy/zricethezav/gitleaks:v8.30.1'
+    entrypoint: ['']
+  before_script: []
+  script:
+    - gitleaks detect --source . --no-banner --redact
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+dependency-audit:
+  stage: security
+  image: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
+  script:
+    - bun install --frozen-lockfile
+    - bun audit --audit-level high
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# Exercise the actual PostgreSQL migration and repository against a disposable
+# service. The public fallback equivalent is documented in docs/ci-cd.md.
+database-integration:
+  stage: preflight
+  image: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
+  services:
+    - name: '${IMAGE_REGISTRY}/dockerhub-proxy/library/postgres:18.6-alpine'
+      alias: postgres
+  variables:
+    POSTGRES_DB: 'phantoms_test'
+    POSTGRES_USER: 'phantoms'
+    POSTGRES_PASSWORD: 'ci-only-password'
+    DATABASE_URL: 'postgres://phantoms:ci-only-password@postgres:5432/phantoms_test'
+    NEXT_TELEMETRY_DISABLED: '1'
+  script:
+    - bun --version
+    - bun install --frozen-lockfile
+    - bun run db:migrate
+    - bun test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# Build the Dockerfile for merge requests without privileged execution or
+# registry credentials. No image artifact is exported from these jobs.
+container-build-mr:
+  stage: build
+  image:
+    name: '${IMAGE_REGISTRY}/dockerhub-proxy/moby/buildkit:v0.27.1-rootless'
+    entrypoint: ['']
+  variables:
+    BUILDKITD_FLAGS: '--oci-worker-no-process-sandbox'
+  before_script: []
+  script:
+    - >-
+      buildctl-daemonless.sh build
+      --frontend dockerfile.v0
+      --local context=.
+      --local dockerfile=.
+      --opt "build-arg:BUN_IMAGE=${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim"
+      --output type=cacheonly
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
+
+# Build one Docker-format image archive on the default branch. The downstream
+# protected smoke job tests this exact artifact; it is never pushed to a registry.
+container-build:
+  stage: build
+  image:
+    name: '${IMAGE_REGISTRY}/dockerhub-proxy/moby/buildkit:v0.27.1-rootless'
+    entrypoint: ['']
+  variables:
+    BUILDKITD_FLAGS: '--oci-worker-no-process-sandbox'
+  before_script: []
+  script:
+    - >-
+      buildctl-daemonless.sh build
+      --frontend dockerfile.v0
+      --local context=.
+      --local dockerfile=.
+      --opt "build-arg:BUN_IMAGE=${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim"
+      --output "type=docker,name=phantoms-smoke:${CI_COMMIT_SHA},dest=container-image.tar"
+  artifacts:
+    paths:
+      - container-image.tar
+    expire_in: 1 day
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# Build the production image and run it without publishing it or exposing
+# registry credentials. This privileged runner is restricted to protected refs.
+container-build-smoke:
+  stage: build
+  needs:
+    - job: container-build
+      artifacts: true
+  image: '${IMAGE_REGISTRY}/dockerhub-proxy/library/docker:29.8.1-cli'
+  services:
+    - name: '${IMAGE_REGISTRY}/dockerhub-proxy/library/docker:29.8.1-dind'
+      alias: docker
+      variables:
+        HEALTHCHECK_TCP_PORT: '2375'
+  tags:
+    - privileged
+  variables:
+    DOCKER_HOST: 'tcp://docker:2375'
+    DOCKER_TLS_CERTDIR: ''
+  before_script: []
+  script:
+    - docker info
+    - docker load --input container-image.tar
+    - docker run --detach --name phantoms-smoke --env DATABASE_URL=postgres://phantoms:ci-only@127.0.0.1:5432/phantoms --env API_BEARER_TOKEN=ci-smoke "phantoms-smoke:${CI_COMMIT_SHA}"
+    - |
+      docker exec phantoms-smoke bun -e '
+        const deadline = Date.now() + 30000;
+        let smokePassed = false;
+        while (Date.now() < deadline) {
+          try {
+            const web = await fetch("http://127.0.0.1:4000/");
+            const live = await fetch("http://127.0.0.1:4000/healthz");
+            const denied = await fetch("http://127.0.0.1:4000/api/tasks");
+            const page = await web.text();
+            if (web.ok && page.includes("PHANTOMS") && live.ok && denied.status === 401) {
+              console.info("container smoke passed: static page, health route, and auth boundary");
+              smokePassed = true;
+              break;
+            }
+          } catch {}
+          await Bun.sleep(500);
+        }
+        if (!smokePassed) throw new Error("container smoke failed or timed out");
+      '
+  after_script:
+    - docker logs phantoms-smoke || true
+    - docker rm --force phantoms-smoke || true
+    - docker image rm "phantoms-smoke:${CI_COMMIT_SHA}" || true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
