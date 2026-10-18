@@ -11,8 +11,9 @@
 # smoke-tests the exact digest in an isolated Kubernetes regression job. No
 # DinD service runs in the GitLab runner pod.
 #
-# Launch Sequence is pinned to an immutable commit. Update the pin deliberately
-# after reading its changelog and running its consumer linter.
+# Launch Sequence is included at ref: main. Pinning to an old commit leaves
+# jobs without the ci-dispatch runner tag and they lose their Kubernetes API
+# access (FocusApiary/gitlab-k8s#24), so this consumer tracks upstream.
 
 workflow:
   rules:
@@ -32,21 +33,19 @@ stages:
 
 include:
   - project: 'DroidOpsInc/launch-sequence'
-    # Resolved 2026-10-01 from origin/main. Keep this SHA immutable until the
-    # replacement has been reviewed and linted against this consumer.
-    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    ref: main
     file: '/pipelines/validate-only.yml'
   - project: 'DroidOpsInc/launch-sequence'
-    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    ref: main
     file: '/jobs/build-buildkit.yml'
   - project: 'DroidOpsInc/launch-sequence'
-    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    ref: main
     file: '/jobs/sign.yml'
   - project: 'DroidOpsInc/launch-sequence'
-    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    ref: main
     file: '/jobs/signature-verify.yml'
   - project: 'DroidOpsInc/launch-sequence'
-    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    ref: main
     file: '/jobs/regression-container-image.yml'
 
 variables:
