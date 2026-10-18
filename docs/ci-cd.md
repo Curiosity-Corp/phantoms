@@ -37,24 +37,25 @@ The source project uses:
 ```yaml
 include:
   - project: 'DroidOpsInc/launch-sequence'
-    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    ref: main
     file: '/pipelines/validate-only.yml'
   - project: 'DroidOpsInc/launch-sequence'
-    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    ref: main
     file: '/jobs/build-buildkit.yml'
   - project: 'DroidOpsInc/launch-sequence'
-    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    ref: main
     file: '/jobs/sign.yml'
   - project: 'DroidOpsInc/launch-sequence'
-    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    ref: main
     file: '/jobs/signature-verify.yml'
   - project: 'DroidOpsInc/launch-sequence'
-    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    ref: main
     file: '/jobs/regression-container-image.yml'
 ```
 
-That SHA is the resolved `origin/main` tip inspected on 2026-10-01. The
-`validate-only.yml` composition supplies shared preflight and SAST jobs;
+The include tracks `ref: main`: jobs that call the Kubernetes API carry the
+`ci-dispatch` runner tag only in current upstream, and an older pinned commit
+loses cluster access (FocusApiary/gitlab-k8s#24). The `validate-only.yml` composition supplies shared preflight and SAST jobs;
 consumer-owned jobs add Bun dependency auditing, a disposable PostgreSQL
 integration test, and a Dockerfile lint for merge requests. Merge requests
 stay on eligible unprivileged runners and do not start a container builder.
@@ -103,14 +104,14 @@ The source checkout's canonical documentation is:
 
 ### Selecting a PHANTOMS app composition
 
-For an application that builds and deploys a container, use the same immutable
-SHA with `pipelines/container-app.yml` and set the application variables at the
+For an application that builds and deploys a container, use the same
+`ref: main` with `pipelines/container-app.yml` and set the application variables at the
 consumer level:
 
 ```yaml
 include:
   - project: 'DroidOpsInc/launch-sequence'
-    ref: b5afba2af206d84ee58315122977b11266f0ff1e
+    ref: main
     file: '/pipelines/container-app.yml'
 
 variables:
