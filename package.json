@@ -25,5 +25,8 @@
     "@types/bun": "1.4.2",
     "turbo": "2.11.6",
     "typescript": "7.0.2"
+  },
+  "overrides": {
+    "undici": "^7.30.1"
   }
 }
