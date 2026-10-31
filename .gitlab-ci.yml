@@ -43,6 +43,9 @@ include:
     file: '/jobs/sign.yml'
   - project: 'DroidOpsInc/launch-sequence'
     ref: main
+    file: '/jobs/attest.yml'
+  - project: 'DroidOpsInc/launch-sequence'
+    ref: main
     file: '/jobs/signature-verify.yml'
   - project: 'DroidOpsInc/launch-sequence'
     ref: main
@@ -169,6 +172,20 @@ sign:
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
+# Attach the CycloneDX SBOM to the exact digest BuildKit exported. The in-build
+# SBOM is best-effort; this job is the authoritative gate that makes
+# signature-verify (and attestation-gate) find 'SBOM attestation VERIFIED'.
+attest:
+  extends: .attest:sbom
+  before_script:
+    # Resolve the exact tag exported by this build attempt.
+    - export IMAGE_TAG="$BUILT_IMAGE_TAG"
+  needs:
+    - job: build
+      artifacts: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
 # Verify both the signature and SBOM before running the image smoke test.
 signature-verify:
   extends: .signature:verify
@@ -181,6 +198,8 @@ signature-verify:
     - job: build
       artifacts: true
     - job: sign
+      artifacts: false
+    - job: attest
       artifacts: false
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
