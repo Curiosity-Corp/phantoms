@@ -122,6 +122,16 @@ database-integration:
   script:
     - bun --version
     - bun install --frozen-lockfile
+    # The postgres service starts concurrently with this job; wait until it
+    # accepts TCP connections (the image only opens TCP after its init
+    # restart) instead of racing drizzle-kit against it.
+    - |
+      ready=0
+      for i in $(seq 1 30); do
+        if bun -e 'const s = await Bun.connect({ hostname: "postgres", port: 5432, socket: { data() {}, open(c) { c.end(); } } }); process.exit(0)' 2>/dev/null; then ready=1; break; fi
+        echo "waiting for postgres ($i/30)"; sleep 2
+      done
+      test "$ready" = 1
     - bun run db:migrate
     - bun test
   rules:
