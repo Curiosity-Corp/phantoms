@@ -13,7 +13,8 @@
 #
 # Launch Sequence is included at ref: main. Pinning to an old commit leaves
 # jobs without the ci-dispatch runner tag and they lose their Kubernetes API
-# access (FocusApiary/gitlab-k8s#24), so this consumer tracks upstream.
+# access, so this consumer tracks upstream. DOCKERHUB_PROXY (a project CI
+# variable) names the Docker Hub pull-through cache the runners use.
 
 workflow:
   rules:
@@ -161,7 +162,7 @@ dockerfile-lint-mr:
 build:
   extends: .build:buildkit
   variables:
-    BUILD_ARGS: 'BUN_IMAGE=harbor.focuscell.org/dockerhub-proxy/oven/bun:1.4.2-slim'
+    BUILD_ARGS: 'BUN_IMAGE=${DOCKERHUB_PROXY}/oven/bun:1.4.2-slim'
     # A new build attempt gets its own tag, so a manual retry cannot move the
     # image reference already verified by an earlier attempt in this pipeline.
     IMAGE_TAG: '${CI_COMMIT_SHORT_SHA}-${CI_PIPELINE_IID}-${CI_JOB_ID}'
@@ -234,7 +235,7 @@ signature-verify:
 attestation-gate:
   stage: regression
   image:
-    name: 'harbor.focuscell.org/dockerhub-proxy/alpine/k8s:1.31.13'
+    name: '${DOCKERHUB_PROXY}/alpine/k8s:1.31.13'
   needs:
     - job: build
       artifacts: true
