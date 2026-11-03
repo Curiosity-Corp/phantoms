@@ -55,7 +55,7 @@ include:
 
 The include tracks `ref: main`: jobs that call the Kubernetes API carry the
 `ci-dispatch` runner tag only in current upstream, and an older pinned commit
-loses cluster access (FocusApiary/gitlab-k8s#24). The `validate-only.yml` composition supplies shared preflight and SAST jobs;
+loses cluster access. The `validate-only.yml` composition supplies shared preflight and SAST jobs;
 consumer-owned jobs add Bun dependency auditing, a disposable PostgreSQL
 integration test, and a Dockerfile lint for merge requests. Merge requests
 stay on eligible unprivileged runners and do not start a container builder.
