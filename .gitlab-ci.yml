@@ -167,7 +167,16 @@ retrieval-integration:
       command: ['etcd', '--advertise-client-urls=http://etcd:2379', '--listen-client-urls=http://0.0.0.0:2379', '--data-dir=/etcd']
     - name: '${IMAGE_REGISTRY}/dockerhub-proxy/milvusdb/milvus:v3.0.3'
       alias: milvus
-      command: ['milvus', 'run', 'standalone']
+      # Services start together. Wait for etcd and SeaweedFS first, because a
+      # sidecar that exits is not restarted.
+      command:
+        - sh
+        - -c
+        - >-
+          until curl -fsS http://etcd:2379/health >/dev/null
+          && curl -fsS http://seaweedfs:9333/cluster/status >/dev/null;
+          do sleep 2; done;
+          exec milvus run standalone
       variables:
         ETCD_ENDPOINTS: 'etcd:2379'
         MINIO_ADDRESS: 'seaweedfs:8333'
@@ -201,10 +210,17 @@ retrieval-integration:
         };
         for (const [name, check] of Object.entries(checks)) {
           let ok = false;
-          for (let i = 1; i <= 90 && !ok; i++) {
-            try { await check(); ok = true; } catch { if (i % 5 === 0) console.log(`waiting for ${name} (${i}/90)`); await Bun.sleep(4000); }
+          for (let i = 1; i <= 60 && !ok; i++) {
+            try { await check(); ok = true; } catch { if (i % 5 === 0) console.log(`waiting for ${name} (${i}/60)`); await Bun.sleep(4000); }
           }
-          if (!ok) { console.error(`${name} did not become ready`); process.exit(1); }
+          if (!ok) {
+            console.error(`${name} did not become ready`);
+            for (const url of ["http://etcd:2379/health", "http://seaweedfs:9333/cluster/status", "http://milvus:9091/healthz"]) {
+              const r = await fetch(url).then((x) => x.text().then((t) => `${x.status} ${t.slice(0, 200)}`), (e) => `unreachable: ${e.message}`);
+              console.error(`diagnostic ${url}: ${r}`);
+            }
+            process.exit(1);
+          }
           console.log(`${name} ready`);
         }
       '
