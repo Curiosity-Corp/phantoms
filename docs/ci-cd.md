@@ -213,7 +213,8 @@ e2e:
     - |
       BUN_VERSION="$(sed -n 's/.*"packageManager": "bun@\([0-9.]*\)".*/\1/p' package.json)"
       test -n "$BUN_VERSION"
-      npm install --global "bun@${BUN_VERSION}"
+      npm install --global --prefix /tmp/bun-npm "bun@${BUN_VERSION}"
+      export PATH="/tmp/bun-npm/bin:${PATH}"
     - bun --version
     - bun install --frozen-lockfile
   script:
