@@ -63,6 +63,7 @@ variables:
     bun install --frozen-lockfile &&
     bun run lint &&
     bun run typecheck &&
+    bun run check:public &&
     bun run db:check
   TEST_COMMANDS: >-
     bun install --frozen-lockfile &&

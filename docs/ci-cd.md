@@ -86,13 +86,9 @@ proxy, including the pinned Semgrep 1.178.0 and Gitleaks 8.30.1 scanners.
 The source project is private. Do not copy its templates into a public repo or
 put credentials in this repository. If your GitLab group has an approved
 Launch Sequence consumer, pin a reviewed SHA and run the linter from a local
-checkout before opening the merge request:
-
-```bash
-python3 scripts/lint-consumer.py \
-  --launch-sequence-path "$LAUNCH_SEQUENCE_CHECKOUT" \
-  .gitlab-ci.yml
-```
+checkout before opening the merge request. The linter ships with the private
+Launch Sequence project, not with this repository, so readers without access
+to that project cannot run it and should use the public fallback below.
 
 The source checkout's canonical documentation is:
 
@@ -124,6 +120,7 @@ variables:
     bun install --frozen-lockfile &&
     bun run lint &&
     bun run typecheck &&
+    bun run check:public &&
     bun run db:check
   TEST_COMMANDS: >-
     bun install --frozen-lockfile &&
@@ -326,6 +323,7 @@ uses different tools:
 | --- | --- |
 | `bun run lint` | formatting and static checks |
 | `bun run typecheck` | TypeScript and generated-type validation |
+| `bun run check:public` | No internal hostnames, private addresses or vendor-as-definition text in tracked files |
 | `bun test` | deterministic unit and integration tests |
 | `bun run build` | production build, when the app has a build step |
 | `bun run db:check` | schema and migration validation |

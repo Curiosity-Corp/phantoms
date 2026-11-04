@@ -16,6 +16,7 @@
     "lint": "bun run --bun biome check .",
     "typecheck": "bun run --bun turbo run typecheck",
     "test": "bun test",
+    "check:public": "bun run scripts/check-public-tree.ts",
     "db:generate": "bun run --filter @phantoms/db db:generate",
     "db:migrate": "bun run --filter @phantoms/db db:migrate",
     "db:check": "bun run --filter @phantoms/db db:check"

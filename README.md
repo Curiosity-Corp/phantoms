@@ -17,7 +17,19 @@ PHANTOMS gives a person or an AI coding agent one coherent starting point for th
 | **M** | [Milvus](https://milvus.io/) | Optional vector and hybrid retrieval |
 | **S** | [SeaweedFS](https://github.com/seaweedfs/seaweedfs) | Optional S3-compatible object storage |
 
-Bun is the required JavaScript runtime and package manager throughout this starter. The source spec's UI, validation, data, identity, search, and observability suggestions are recorded in [the architecture guide](docs/architecture.md), with clear guidance on what belongs in a first app and what should remain optional.
+Bun is the required JavaScript runtime and package manager for this starter's app workspace, CI and deployment image. Optional services that you deploy separately may bring their own runtime: OpenClaw, for example, is a Node application. The source spec's UI, validation, data, identity, search, and observability suggestions are recorded in [the architecture guide](docs/architecture.md), with clear guidance on what belongs in a first app and what should remain optional.
+
+## Variants
+
+PHANTOMS is a family, not one fixed stack. The **A** is always **AI**: model access behind a replaceable, provider-neutral adapter, never one vendor. Each variant keeps that definition.
+
+| Variant | State | Choose it when |
+| --- | --- | --- |
+| **PHANTOMS core** (this repository) | Runnable | You want the smallest TypeScript stack that runs: PostgreSQL, a Hono API, a static Next.js site and an AI adapter, all on Bun. |
+| **PHANTOMS+ web** | In modernisation | You need a fuller web product: a UI kit (Tailwind CSS 4 and shadcn/ui), accounts and sign-in, search. It starts from this core and adds those layers. |
+| **PHANTOMS TUI** | Planned, not built | Your product is a terminal or SSH application, written in Go with the Charm libraries. Its scope is written; there is no repository yet. |
+
+Which repositories hold each variant, and their final names, are still being decided. This table will be updated when they are.
 
 ## Why this helps
 
@@ -31,7 +43,7 @@ This is a learning starter, not a finished product or a claim that one stack fit
 
 ## Start here
 
-Prerequisites: [Bun 1.4.2](https://bun.sh/), Docker Compose, and Git. Use Bun commands for JavaScript tooling; do not substitute another JavaScript runtime or package manager.
+Prerequisites: [Bun 1.4.2](https://bun.sh/), Docker Compose, and Git. Use Bun commands for JavaScript tooling in this workspace; do not substitute another JavaScript runtime or package manager.
 
 ```sh
 git clone https://github.com/Curiosity-Corp/phantoms.git
