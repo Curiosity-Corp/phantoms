@@ -10,22 +10,20 @@ if (!enabled) {
   test.skip('Milvus and SeaweedFS tests require RETRIEVAL_INTEGRATION=1', () => {});
 } else {
   const milvusUrl = Bun.env.MILVUS_URL ?? 'http://127.0.0.1:19530';
-  const s3 = new Bun.S3Client({
-    endpoint: Bun.env.S3_ENDPOINT ?? 'http://127.0.0.1:8333',
-    accessKeyId: Bun.env.S3_ACCESS_KEY ?? 'phantoms-local',
-    secretAccessKey: Bun.env.S3_SECRET_KEY ?? 'phantoms-local-secret',
-    bucket: Bun.env.S3_TEST_BUCKET ?? 'phantoms-integration',
-    region: 'us-east-1',
-  });
-
+  // The fallback is the disposable credential in compose.yaml for a loopback
+  // service, not a real secret.
+  const s3Secret = Bun.env.S3_SECRET_KEY ?? 'phantoms-local-secret'; // gitleaks:allow
+  const s3Bucket = (bucket: string) =>
+    new Bun.S3Client({
+      endpoint: Bun.env.S3_ENDPOINT ?? 'http://127.0.0.1:8333',
+      accessKeyId: Bun.env.S3_ACCESS_KEY ?? 'phantoms-local',
+      secretAccessKey: s3Secret,
+      bucket,
+      region: 'us-east-1',
+    });
+  const s3 = s3Bucket(Bun.env.S3_TEST_BUCKET ?? 'phantoms-integration');
   // The bucket Milvus is configured to use (MILVUS_BUCKET in compose.yaml).
-  const milvusBucket = new Bun.S3Client({
-    endpoint: Bun.env.S3_ENDPOINT ?? 'http://127.0.0.1:8333',
-    accessKeyId: Bun.env.S3_ACCESS_KEY ?? 'phantoms-local',
-    secretAccessKey: Bun.env.S3_SECRET_KEY ?? 'phantoms-local-secret',
-    bucket: Bun.env.MILVUS_BUCKET ?? 'milvus',
-    region: 'us-east-1',
-  });
+  const milvusBucket = s3Bucket(Bun.env.MILVUS_BUCKET ?? 'milvus');
 
   async function countSegmentFiles() {
     const listed = await milvusBucket.list({
