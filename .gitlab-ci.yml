@@ -168,7 +168,8 @@ retrieval-integration:
       variables:
         ETCD_ADVERTISE_CLIENT_URLS: 'http://etcd:2379'
         ETCD_LISTEN_CLIENT_URLS: 'http://0.0.0.0:2379'
-        ETCD_DATA_DIR: '/var/lib/etcd/data'
+        # The job pod gives containers no writable disk path except shared memory.
+        ETCD_DATA_DIR: '/dev/shm/etcd'
     - name: '${IMAGE_REGISTRY}/dockerhub-proxy/milvusdb/milvus:v3.0.3'
       alias: milvus
       # Services start together. Wait for etcd and SeaweedFS first, because a
