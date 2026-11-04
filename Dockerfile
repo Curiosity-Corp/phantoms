@@ -5,6 +5,7 @@ WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml turbo.json tsconfig.base.json ./
 COPY apps/api/package.json apps/api/package.json
+COPY apps/mcp/package.json apps/mcp/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/ai/package.json packages/ai/package.json
 COPY packages/db/package.json packages/db/package.json
