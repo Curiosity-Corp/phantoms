@@ -57,7 +57,8 @@ The include tracks `ref: main`: jobs that call the Kubernetes API carry the
 `ci-dispatch` runner tag only in current upstream, and an older pinned commit
 loses cluster access. The `validate-only.yml` composition supplies shared preflight and SAST jobs;
 consumer-owned jobs add Bun dependency auditing, a disposable PostgreSQL
-integration test, and a Dockerfile lint for merge requests. Merge requests
+integration test, a browser end-to-end job (see below), and a Dockerfile lint
+for merge requests. Merge requests
 stay on eligible unprivileged runners and do not start a container builder.
 On protected `main`, the Launch Sequence BuildKit dispatcher builds a
 build-attempt-specific image tag in an isolated Kubernetes job and publishes
@@ -201,6 +202,32 @@ build:
   script:
     - bun run build
 
+# Browsers come from the pinned Playwright image, not from a download in the
+# job. Keep the image tag equal to the @playwright/test version.
+e2e:
+  stage: verify
+  image: mcr.microsoft.com/playwright:v1.64.1-noble
+  variables:
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+  before_script:
+    - |
+      BUN_VERSION="$(sed -n 's/.*"packageManager": "bun@\([0-9.]*\)".*/\1/p' package.json)"
+      test -n "$BUN_VERSION"
+      npm install --global "bun@${BUN_VERSION}"
+    - bun --version
+    - bun install --frozen-lockfile
+  script:
+    - bun run build
+    - bun run test:e2e
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - playwright-report/
+      - test-results/
+    reports:
+      junit: test-results/e2e-junit.xml
+
 database-integration:
   stage: verify
   image: oven/bun:1.4.2-slim
@@ -330,16 +357,32 @@ uses different tools:
 | `bun run build` | production build, when the app has a build step |
 | `bun run db:check` | schema and migration validation |
 | `database-integration` | apply migrations and exercise database access with disposable PostgreSQL |
-| `bun run test:e2e` | browser journey tests when the app has user journeys that need browser coverage |
+| `bun run test:e2e` | Playwright browser journeys against the built static web app (run `bun run build` first); needs browsers, not network |
 
 CI owns the order and environment; the repository owns the commands. Keep
 network calls, model calls, and mutable external state out of unit tests. Use
 fixtures or disposable services for tests, and keep production AI credentials
 out of merge request pipelines.
 
-The example starter has no interactive browser flow, so it does not define a
-`test:e2e` script. Add one when an app has a browser journey worth protecting;
-run it against the built candidate in a browser-capable CI job.
+### Browser end-to-end tests
+
+`bun run test:e2e` runs the Playwright journeys in `e2e/` against the built
+static web app. `apps/api/test/e2e-server.ts` serves that build with the real
+Hono app and an in-memory task store, so the run needs no PostgreSQL, no model
+provider and no network once the browsers are installed. The web app has no
+task screen yet, so the task create and list journey calls the API from the
+page; replace it with click-through steps when a task screen exists.
+
+CI runs it as the `e2e` job in a pinned Playwright container image,
+`mcr.microsoft.com/playwright:v<version>-noble`, instead of downloading
+browsers on every run. The image carries the browsers and their system
+libraries; it also carries a Node binary, which Playwright's runner does not
+use here, because `test:e2e` runs the runner with `bun run --bun`. The job
+installs the Bun release named by `packageManager` (the Playwright image has no
+Bun) and fails when the installed `@playwright/test` version differs from
+`PLAYWRIGHT_VERSION`, so the browsers and the library cannot drift apart. Bump
+`@playwright/test` and `PLAYWRIGHT_VERSION` together. See decision 006 in
+[decisions.md](decisions.md).
 
 ## Promotion and operations checklist
 
