@@ -172,6 +172,10 @@ retrieval-integration:
         ETCD_DATA_DIR: '/dev/shm/etcd'
     - name: '${IMAGE_REGISTRY}/dockerhub-proxy/milvusdb/milvus:v3.0.3'
       alias: milvus
+      # The Milvus image's files are readable and runnable only by its own user
+      # (uid 999), so run the container as that user.
+      kubernetes:
+        user: '999'
       # Services start together. Wait for etcd and SeaweedFS first, because a
       # sidecar that exits is not restarted.
       command:
