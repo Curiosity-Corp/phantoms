@@ -191,6 +191,9 @@ retrieval-integration:
         MINIO_BUCKETNAME: 'milvus'
   variables:
     NEXT_TELEMETRY_DISABLED: '1'
+    # Print the service containers' logs in the job log; without them a service
+    # that fails to start leaves no trace.
+    CI_DEBUG_SERVICES: 'true'
     RETRIEVAL_INTEGRATION: '1'
     PGVECTOR_DATABASE_URL: 'postgres://phantoms:ci-only-password@pgvector:5432/phantoms_test'
     S3_ENDPOINT: 'http://seaweedfs:8333'
