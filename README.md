@@ -55,6 +55,7 @@ For a single-container production shape, `Dockerfile` builds the static web outp
 bun install --frozen-lockfile
 bun run lint
 bun run typecheck
+bun run check:agents
 bun audit --audit-level high
 bun test
 bun run build
@@ -69,6 +70,7 @@ The starter was refreshed on **2026-10-01**. Exact application package versions 
 ## Documentation
 
 - [Agent instructions](AGENTS.md)
+- Agent enforcement and tools: [hooks and permissions](docs/agents/hooks.md), [MCP servers](docs/agents/mcp.md), [task recipes](docs/agents/recipes.md)
 - [Architecture and optional services](docs/architecture.md)
 - [Recommended supporting tools](docs/recommended-tooling.md)
 - [Getting started](docs/getting-started.md)
