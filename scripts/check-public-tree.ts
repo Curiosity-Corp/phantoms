@@ -2,9 +2,29 @@
 // something that must not be public, or defines the A of PHANTOMS as one
 // vendor. Run with: bun run check:public
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const SKIP = new Set(['bun.lock', 'scripts/check-public-tree.ts']);
+// Generated or vendored folders are never part of the mirror.
+const SKIP_DIRS = new Set([
+  '.git',
+  'node_modules',
+  '.next',
+  '.turbo',
+  'dist',
+  'out',
+  'coverage',
+]);
+
+// Walks the working tree, so it needs no git binary (CI images may lack one).
+function walk(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = dir === '.' ? entry.name : join(dir, entry.name);
+    if (entry.isDirectory()) return SKIP_DIRS.has(entry.name) ? [] : walk(path);
+    return [path];
+  });
+}
 
 const rules: { name: string; pattern: RegExp }[] = [
   {
@@ -28,10 +48,7 @@ const rules: { name: string; pattern: RegExp }[] = [
   },
 ];
 
-const files = new TextDecoder()
-  .decode(Bun.spawnSync(['git', 'ls-files', '-z']).stdout)
-  .split('\0')
-  .filter((path) => path && !SKIP.has(path));
+const files = walk('.').filter((path) => !SKIP.has(path));
 
 const problems: string[] = [];
 for (const file of files) {
