@@ -39,7 +39,7 @@ The web package includes the framework's `@types/node` declarations solely becau
 **Reason:** Internal CI can consume the private Launch Sequence; public readers receive a portable fallback pipeline.
 **Tradeoff:** Public users cannot fetch the internal pipeline include and must use the fallback documented in `ci-cd.md`.
 
-## 007 — pgvector first; Milvus and SeaweedFS as tested optional profiles
+## 012 — pgvector first; Milvus and SeaweedFS as tested optional profiles
 
 **Date:** 2026-11-04
 **Decision:** Document pgvector in the existing PostgreSQL as the first retrieval step, with its own migrations, one table and a cosine-similarity query. Offer Milvus 3 and SeaweedFS as Compose profiles (`retrieval`, `objects`) that are off by default, and prove them with an opt-in integration test that CI runs on a schedule.
