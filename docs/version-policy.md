@@ -24,7 +24,7 @@ Official sources: [Bun releases](https://github.com/oven-sh/bun/releases), [Turb
 | OpenClaw | `v2026.9.7` | Review the release, isolate the gateway, and configure per-agent tool permissions. |
 | Milvus | `v3.0.3` | Runnable in the `retrieval` profile and tested against SeaweedFS ([retrieval.md](retrieval.md)). Verify query workload, authentication, and production backups before adoption. |
 | SeaweedFS | `4.48` | Runnable in the `objects` and `retrieval` profiles. Test retention, access control, and recovery with your client before adoption. |
-| etcd | `v3.5.25` | Milvus metadata store in the `retrieval` profile. |
+| etcd | `v3.5.34` | Milvus metadata store in the `retrieval` profile. |
 | pgvector | `0.8.6` (image `pgvector/pgvector:0.8.6-pg18`, PostgreSQL 18.6) | Runnable in the `pgvector` profile. `0.8.7` fixes an IVFFlat build overflow and was newer than two weeks only after this review; the starter uses HNSW. |
 
 Sources: [OpenClaw releases](https://github.com/openclaw/openclaw/releases), [Milvus release notes](https://milvus.io/docs/release_notes.md), [SeaweedFS releases](https://github.com/seaweedfs/seaweedfs/releases), [pgvector changelog](https://github.com/pgvector/pgvector/blob/master/CHANGELOG.md), and [etcd releases](https://github.com/etcd-io/etcd/releases).

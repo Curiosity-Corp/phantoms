@@ -227,7 +227,7 @@ retrieval-integration:
       alias: pgvector
     - name: chrislusf/seaweedfs:4.48
       alias: seaweedfs
-    - name: quay.io/coreos/etcd:v3.5.25
+    - name: quay.io/coreos/etcd:v3.5.34
       alias: etcd
     - name: milvusdb/milvus:v3.0.3
       alias: milvus
