@@ -9,13 +9,13 @@
     "typecheck": "bun run --bun tsc --noEmit"
   },
   "dependencies": {
-    "@hono/bun": "1.0.0",
+    "@hono/bun": "1.0.1",
     "@phantoms/db": "workspace:*",
-    "hono": "4.13.12",
+    "hono": "4.13.16",
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@types/bun": "1.4.2",
+    "@types/bun": "1.4.4",
     "typescript": "7.0.2"
   }
 }

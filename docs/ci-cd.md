@@ -118,18 +118,19 @@ variables:
   IMAGE_NAME: 'my-phantoms-app'
   HARBOR_PROJECT: 'apps'
   DOCKERFILE: 'Dockerfile'
-  PREFLIGHT_IMAGE: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
+  PREFLIGHT_IMAGE: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.4-slim'
   PREFLIGHT_REQUIRED_TOOLS: 'bun'
   PREFLIGHT_COMMANDS: >-
     bun install --frozen-lockfile &&
     bun run lint &&
     bun run typecheck &&
+    bun run check:versions &&
     bun run db:check
   TEST_COMMANDS: >-
     bun install --frozen-lockfile &&
     bun test &&
     bun run build
-  LOCKFILE_IMAGE: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
+  LOCKFILE_IMAGE: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.4-slim'
   LOCKFILE_COMMANDS: 'bun install --frozen-lockfile'
 ```
 
@@ -158,10 +159,10 @@ artifact and report handoffs through the DAG.
 If the private Launch Sequence project is unavailable, replace the private
 `include` with this self-contained GitLab configuration. It keeps Bun as the
 only JavaScript runtime. Pin or update each image deliberately; this October
-2026 example uses Bun 1.4.2, Hadolint 2.15.1, and Docker 29.8.1.
+2026 example uses Bun 1.4.4, Hadolint 2.15.1, and Docker 29.8.1.
 
 ```yaml
-image: oven/bun:1.4.2-slim
+image: oven/bun:1.4.4-slim
 
 workflow:
   rules:
@@ -203,7 +204,7 @@ build:
 
 database-integration:
   stage: verify
-  image: oven/bun:1.4.2-slim
+  image: oven/bun:1.4.4-slim
   services:
     - name: postgres:18.6-alpine
       alias: postgres
@@ -275,7 +276,7 @@ container-build-smoke:
     - docker info
     - >-
       docker build --pull
-      --build-arg BUN_IMAGE=oven/bun:1.4.2-slim
+      --build-arg BUN_IMAGE=oven/bun:1.4.4-slim
       --tag "phantoms-smoke:${CI_COMMIT_SHA}" .
     - docker run --detach --name phantoms-smoke --env DATABASE_URL=postgres://phantoms:ci-only@127.0.0.1:5432/phantoms --env API_BEARER_TOKEN=ci-smoke "phantoms-smoke:${CI_COMMIT_SHA}"
     - |
@@ -326,6 +327,7 @@ uses different tools:
 | --- | --- |
 | `bun run lint` | formatting and static checks |
 | `bun run typecheck` | TypeScript and generated-type validation |
+| `bun run check:versions` | Versions in `docs/version-policy.md` match the manifests |
 | `bun test` | deterministic unit and integration tests |
 | `bun run build` | production build, when the app has a build step |
 | `bun run db:check` | schema and migration validation |

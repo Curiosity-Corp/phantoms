@@ -2,9 +2,9 @@
   "name": "phantoms-starter",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.4.2",
+  "packageManager": "bun@1.4.4",
   "engines": {
-    "bun": ">=1.4.2"
+    "bun": ">=1.4.4"
   },
   "workspaces": [
     "apps/*",
@@ -16,14 +16,15 @@
     "lint": "bun run --bun biome check .",
     "typecheck": "bun run --bun turbo run typecheck",
     "test": "bun test",
+    "check:versions": "bun run scripts/check-versions.ts",
     "db:generate": "bun run --filter @phantoms/db db:generate",
     "db:migrate": "bun run --filter @phantoms/db db:migrate",
     "db:check": "bun run --filter @phantoms/db db:check"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
-    "@types/bun": "1.4.2",
-    "turbo": "2.11.6",
+    "@biomejs/biome": "2.6.4",
+    "@types/bun": "1.4.4",
+    "turbo": "2.11.10",
     "typescript": "7.0.2"
   },
   "overrides": {
