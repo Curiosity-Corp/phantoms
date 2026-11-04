@@ -93,9 +93,11 @@ Milvus does not, as far as the sources checked on 2026-11-04 show, publish a com
 RETRIEVAL_INTEGRATION=1 bun test apps/api/test/retrieval.integration.test.ts
 ```
 
-The test writes, reads and deletes an object through the S3 API, then creates a Milvus collection, inserts vectors, searches them and drops the collection. Without `RETRIEVAL_INTEGRATION=1` it is skipped, and `bun test` needs neither service. With it set, an unreachable service fails the test.
+To test only the S3 side (SeaweedFS, no Milvus or etcd), start the `objects` profile and use `OBJECTS_INTEGRATION=1` instead.
 
-CI runs the same test in the `retrieval-integration` job: on pipeline schedules, and manually (not automatically) on merge requests. Create the schedule in the GitLab project settings; a failed scheduled run shows as a red pipeline.
+The test writes, reads and deletes an object through the S3 API, then creates a Milvus collection, inserts vectors, searches them and drops the collection. Without `RETRIEVAL_INTEGRATION=1` (or `OBJECTS_INTEGRATION=1` for the S3 test alone) it is skipped, and `bun test` needs neither service. With a switch set, an unreachable service fails the test.
+
+CI runs the pgvector tests and the SeaweedFS S3 test in the `pgvector-objects-integration` job: on pipeline schedules, and manually (not automatically) on merge requests. Create the schedule in the GitLab project settings; a failed scheduled run shows as a red pipeline. **The Milvus test does not run in CI**: the shared runner pool starts service containers as uid 1000 and refuses a per-service user, and the Milvus image only runs as its own uid 999, so it exits with "Permission denied". The Milvus proof is the local run above (see [`ci-cd.md`](ci-cd.md)).
 
 ### Operating notes
 

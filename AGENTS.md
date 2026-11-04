@@ -15,7 +15,7 @@ Use this file as the entry point when an AI coding agent is asked to create or c
 - Do not add a second JavaScript runtime or package manager to the development, CI, or deployment path.
 - Keep PHANTOMS' **A** provider-neutral. Put model-provider setup behind an adapter and server-side environment configuration. Never expose model credentials in browser code.
 - Keep OpenClaw optional and isolated. No agent tools, plugins, shell access, or broad permissions are enabled by default.
-- Keep Milvus and SeaweedFS optional until retrieval or object-storage requirements justify their operational cost. For semantic search start with pgvector (`@phantoms/db/vector`, `docs/retrieval.md`); optional services stay behind Compose profiles and opt-in tests (`PGVECTOR_DATABASE_URL`, `RETRIEVAL_INTEGRATION=1`) so the default `bun test` needs none of them.
+- Keep Milvus and SeaweedFS optional until retrieval or object-storage requirements justify their operational cost. For semantic search start with pgvector (`@phantoms/db/vector`, `docs/retrieval.md`); optional services stay behind Compose profiles and opt-in tests (`PGVECTOR_DATABASE_URL`, `OBJECTS_INTEGRATION=1`, `RETRIEVAL_INTEGRATION=1`) so the default `bun test` needs none of them.
 - Validate request data at API boundaries, keep database access in `packages/db`, and use reviewed migrations for schema changes.
 - Never commit secrets, production connection strings, user data, generated credentials, or private environment files.
 - Prefer explicit, small changes. Do not add a dependency for behavior the platform already provides.

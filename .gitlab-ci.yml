@@ -140,13 +140,18 @@ database-integration:
     - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
-# Optional retrieval stack: pgvector, then Milvus 3 with etcd and SeaweedFS (the
-# `pgvector`, `retrieval` and `objects` Compose profiles). It runs on pipeline
+# Optional retrieval services: pgvector and SeaweedFS (the `pgvector` and
+# `objects` Compose profiles) as disposable job services. It runs on pipeline
 # schedules and can be started by hand on a merge request; it never runs on
 # ordinary pushes, so the default path stays light and needs none of these
-# images. Create the schedule in the project's CI/CD settings. The image
-# versions repeat compose.yaml; change them together (docs/retrieval.md).
-retrieval-integration:
+# images. Create the schedule in the project's CI/CD settings. Versions repeat
+# compose.yaml; change them together (docs/retrieval.md).
+#
+# Milvus is not part of this job. The shared runner pool starts every container
+# as uid 1000 and refuses a per-service user, and the Milvus image can only be
+# run by its own uid 999, so Milvus cannot start here. The Milvus job for a
+# runner without that limit is in docs/ci-cd.md.
+pgvector-objects-integration:
   stage: preflight
   image: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
   services:
@@ -162,77 +167,34 @@ retrieval-integration:
       variables:
         AWS_ACCESS_KEY_ID: 'ci-only-access'
         AWS_SECRET_ACCESS_KEY: 'ci-only-secret'
-    - name: 'quay.io/coreos/etcd:v3.5.34'
-      alias: etcd
-      # Configured by environment so the image's own start command is used.
-      variables:
-        ETCD_ADVERTISE_CLIENT_URLS: 'http://etcd:2379'
-        ETCD_LISTEN_CLIENT_URLS: 'http://0.0.0.0:2379'
-        # The job pod gives containers no writable disk path except shared memory.
-        ETCD_DATA_DIR: '/dev/shm/etcd'
-    - name: '${IMAGE_REGISTRY}/dockerhub-proxy/milvusdb/milvus:v3.0.3'
-      alias: milvus
-      # The Milvus image's files are readable and runnable only by its own user
-      # (uid 999), so run the container as that user.
-      kubernetes:
-        user: '999'
-      # Services start together. Wait for etcd and SeaweedFS first, because a
-      # sidecar that exits is not restarted.
-      command:
-        - sh
-        - -c
-        - >-
-          until curl -fsS http://etcd:2379/health >/dev/null
-          && curl -fsS http://seaweedfs:9333/cluster/status >/dev/null;
-          do sleep 2; done;
-          exec milvus run standalone
-      variables:
-        ETCD_ENDPOINTS: 'etcd:2379'
-        MINIO_ADDRESS: 'seaweedfs:8333'
-        MINIO_PORT: '8333'
-        MINIO_ACCESS_KEY_ID: 'ci-only-access'
-        MINIO_SECRET_ACCESS_KEY: 'ci-only-secret'
-        MINIO_USESSL: 'false'
-        MINIO_BUCKETNAME: 'milvus'
   variables:
     NEXT_TELEMETRY_DISABLED: '1'
     # Print the service containers' logs in the job log; without them a service
     # that fails to start leaves no trace.
     CI_DEBUG_SERVICES: 'true'
-    RETRIEVAL_INTEGRATION: '1'
+    OBJECTS_INTEGRATION: '1'
     PGVECTOR_DATABASE_URL: 'postgres://phantoms:ci-only-password@pgvector:5432/phantoms_test'
     S3_ENDPOINT: 'http://seaweedfs:8333'
     S3_ACCESS_KEY: 'ci-only-access'
     S3_SECRET_KEY: 'ci-only-secret'
-    MILVUS_URL: 'http://milvus:19530'
-    MILVUS_BUCKET: 'milvus'
-  timeout: 20m
+  timeout: 15m
   script:
     - bun --version
     - bun install --frozen-lockfile
-    # The services start concurrently with this job and Milvus needs etcd and
-    # SeaweedFS first (it retries on its own), so wait for each one to answer
-    # before testing. A service that never comes up fails the job.
+    # The services start concurrently with this job. Wait for each one to
+    # answer before testing; a service that never comes up fails the job.
     - |
       bun -e '
         const checks = {
           pgvector: () => Bun.connect({ hostname: "pgvector", port: 5432, socket: { data() {}, open(c) { c.end(); } } }),
           seaweedfs: () => fetch("http://seaweedfs:9333/cluster/status").then((r) => { if (!r.ok) throw new Error(String(r.status)); }),
-          milvus: () => fetch("http://milvus:9091/healthz").then((r) => { if (!r.ok) throw new Error(String(r.status)); }),
         };
         for (const [name, check] of Object.entries(checks)) {
           let ok = false;
           for (let i = 1; i <= 60 && !ok; i++) {
-            try { await check(); ok = true; } catch { if (i % 5 === 0) console.log(`waiting for ${name} (${i}/60)`); await Bun.sleep(4000); }
+            try { await check(); ok = true; } catch { if (i % 5 === 0) console.log(`waiting for ${name} (${i}/60)`); await Bun.sleep(2000); }
           }
-          if (!ok) {
-            console.error(`${name} did not become ready`);
-            for (const url of ["http://127.0.0.1:2379/health", "http://etcd:2379/health","http://seaweedfs:9333/cluster/status", "http://milvus:9091/healthz"]) {
-              const r = await fetch(url).then((x) => x.text().then((t) => `${x.status} ${t.slice(0, 200)}`), (e) => `unreachable: ${e.message}`);
-              console.error(`diagnostic ${url}: ${r}`);
-            }
-            process.exit(1);
-          }
+          if (!ok) { console.error(`${name} did not become ready`); process.exit(1); }
           console.log(`${name} ready`);
         }
       '

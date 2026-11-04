@@ -216,10 +216,12 @@ database-integration:
     - bun run db:migrate
     - bun test
 
-# Optional: pgvector, Milvus and SeaweedFS. Run it from a pipeline schedule or
-# by hand; see docs/retrieval.md. Milvus also needs an etcd service (copy the
-# service block from .gitlab-ci.yml) and a wait for each service before testing.
-retrieval-integration:
+# Optional: pgvector and SeaweedFS (S3). Run it from a pipeline schedule or by
+# hand; see docs/retrieval.md. Wait for each service before testing (the
+# `pgvector-objects-integration` job in .gitlab-ci.yml does). To add Milvus on
+# a runner that lets the Milvus image run as its own user (uid 999), add the
+# etcd and Milvus services, a wait for both, and RETRIEVAL_INTEGRATION=1.
+pgvector-objects-integration:
   stage: verify
   image: oven/bun:1.4.2-slim
   services:
@@ -227,13 +229,11 @@ retrieval-integration:
       alias: pgvector
     - name: chrislusf/seaweedfs:4.48
       alias: seaweedfs
-    - name: quay.io/coreos/etcd:v3.5.34
-      alias: etcd
-    - name: milvusdb/milvus:v3.0.3
-      alias: milvus
+      command: ['server', '-dir=/data', '-s3', '-s3.port=8333']
   variables:
-    RETRIEVAL_INTEGRATION: '1'
+    OBJECTS_INTEGRATION: '1'
     PGVECTOR_DATABASE_URL: 'postgres://phantoms:ci-only-password@pgvector:5432/phantoms_test'
+    S3_ENDPOINT: 'http://seaweedfs:8333'
   script:
     - bun run db:migrate:vector
     - bun test packages/db apps/api/test/retrieval.integration.test.ts
@@ -357,7 +357,7 @@ uses different tools:
 | `bun run build` | production build, when the app has a build step |
 | `bun run db:check` | schema and migration validation |
 | `database-integration` | apply migrations and exercise database access with disposable PostgreSQL |
-| `retrieval-integration` | optional: pgvector, Milvus and SeaweedFS in disposable services, on a schedule or by hand ([retrieval.md](retrieval.md)) |
+| `pgvector-objects-integration` | optional: pgvector search and the SeaweedFS S3 API in disposable services, on a schedule or by hand ([retrieval.md](retrieval.md)) |
 | `bun run test:e2e` | browser journey tests when the app has user journeys that need browser coverage |
 
 CI owns the order and environment; the repository owns the commands. Keep
@@ -371,16 +371,23 @@ run it against the built candidate in a browser-capable CI job.
 
 ### Optional retrieval job
 
-`retrieval-integration` starts pgvector, SeaweedFS, etcd and Milvus as job
-services, applies the separate vector migrations, and runs the tests that
-`RETRIEVAL_INTEGRATION=1` and `PGVECTOR_DATABASE_URL` enable. It is not part of
-the default path: it runs on pipeline schedules and can be started manually on a
-merge request (`allow_failure: true`, so an unstarted job does not block the
-merge). Create a schedule under CI/CD settings. A failing scheduled run shows
-as a failed pipeline. Two things to know: a scheduled pipeline on the default
-branch also runs that branch's other jobs, including the image build, and the
-Milvus services need more memory than the other jobs, so give the runner enough
-before relying on it.
+`pgvector-objects-integration` starts pgvector and SeaweedFS as job services,
+applies the separate vector migrations, and runs the tests that
+`OBJECTS_INTEGRATION=1` and `PGVECTOR_DATABASE_URL` enable: vector insert and
+search, and an S3 write, read and delete. It is not part of the default path: it
+runs on pipeline schedules and can be started manually on a merge request
+(`allow_failure: true`, so an unstarted job does not block the merge). Create a
+schedule under CI/CD settings. A failing scheduled run shows as a failed
+pipeline. A scheduled pipeline on the default branch also runs that branch's
+other jobs, including the image build.
+
+Milvus is not in this job. On the shared runner pool every job container starts
+as uid 1000 and a per-service `user` is refused, while the Milvus image can only
+be run by its own uid 999 (the service exits with "Permission denied"). Milvus
+is therefore proved locally with `RETRIEVAL_INTEGRATION=1`
+([retrieval.md](retrieval.md)). Running it in CI needs a runner that allows the
+service to run as uid 999, or an image rebuilt to run as an arbitrary user; that
+is a runner or platform decision.
 
 ## Promotion and operations checklist
 
