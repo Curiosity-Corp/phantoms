@@ -216,6 +216,33 @@ database-integration:
     - bun run db:migrate
     - bun test
 
+# Optional: pgvector, Milvus and SeaweedFS. Run it from a pipeline schedule or
+# by hand; see docs/retrieval.md. Milvus also needs an etcd service (copy the
+# service block from .gitlab-ci.yml) and a wait for each service before testing.
+retrieval-integration:
+  stage: verify
+  image: oven/bun:1.4.2-slim
+  services:
+    - name: pgvector/pgvector:0.8.6-pg18
+      alias: pgvector
+    - name: chrislusf/seaweedfs:4.48
+      alias: seaweedfs
+    - name: quay.io/coreos/etcd:v3.5.25
+      alias: etcd
+    - name: milvusdb/milvus:v3.0.3
+      alias: milvus
+  variables:
+    RETRIEVAL_INTEGRATION: '1'
+    PGVECTOR_DATABASE_URL: 'postgres://phantoms:ci-only-password@pgvector:5432/phantoms_test'
+  script:
+    - bun run db:migrate:vector
+    - bun test packages/db apps/api/test/retrieval.integration.test.ts
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+      allow_failure: true
+
 db-check:
   stage: verify
   script:
@@ -330,6 +357,7 @@ uses different tools:
 | `bun run build` | production build, when the app has a build step |
 | `bun run db:check` | schema and migration validation |
 | `database-integration` | apply migrations and exercise database access with disposable PostgreSQL |
+| `retrieval-integration` | optional: pgvector, Milvus and SeaweedFS in disposable services, on a schedule or by hand ([retrieval.md](retrieval.md)) |
 | `bun run test:e2e` | browser journey tests when the app has user journeys that need browser coverage |
 
 CI owns the order and environment; the repository owns the commands. Keep
@@ -340,6 +368,19 @@ out of merge request pipelines.
 The example starter has no interactive browser flow, so it does not define a
 `test:e2e` script. Add one when an app has a browser journey worth protecting;
 run it against the built candidate in a browser-capable CI job.
+
+### Optional retrieval job
+
+`retrieval-integration` starts pgvector, SeaweedFS, etcd and Milvus as job
+services, applies the separate vector migrations, and runs the tests that
+`RETRIEVAL_INTEGRATION=1` and `PGVECTOR_DATABASE_URL` enable. It is not part of
+the default path: it runs on pipeline schedules and can be started manually on a
+merge request (`allow_failure: true`, so an unstarted job does not block the
+merge). Create a schedule under CI/CD settings. A failing scheduled run shows
+as a failed pipeline. Two things to know: a scheduled pipeline on the default
+branch also runs that branch's other jobs, including the image build, and the
+Milvus services need more memory than the other jobs, so give the runner enough
+before relying on it.
 
 ## Promotion and operations checklist
 

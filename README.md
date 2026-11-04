@@ -14,15 +14,15 @@ PHANTOMS gives a person or an AI coding agent one coherent starting point for th
 | **N** | [Next.js](https://nextjs.org/) | Web application and App Router |
 | **T** | [Turborepo](https://turborepo.dev/) | Task graph and monorepo caching |
 | **O** | [OpenClaw](https://github.com/openclaw/openclaw) | Optional agent runtime for scoped tool workflows |
-| **M** | [Milvus](https://milvus.io/) | Optional vector and hybrid retrieval |
-| **S** | [SeaweedFS](https://github.com/seaweedfs/seaweedfs) | Optional S3-compatible object storage |
+| **M** | [Milvus](https://milvus.io/) | Optional vector and hybrid retrieval; start with pgvector, graduate to Milvus ([guide](docs/retrieval.md)) |
+| **S** | [SeaweedFS](https://github.com/seaweedfs/seaweedfs) | Optional S3-compatible object storage, runnable with `docker compose --profile objects up -d` |
 
 Bun is the required JavaScript runtime and package manager throughout this starter. The source spec's UI, validation, data, identity, search, and observability suggestions are recorded in [the architecture guide](docs/architecture.md), with clear guidance on what belongs in a first app and what should remain optional.
 
 ## Why this helps
 
 - **A whole application shape:** the acronym connects the browser, API, database, AI adapter, agents, retrieval, and object storage.
-- **A smaller first step:** PostgreSQL, Hono, Next.js, and Bun are runnable here; Milvus, SeaweedFS, OpenClaw, identity, cache, and search are introduced only when a product needs them.
+- **A smaller first step:** PostgreSQL, Hono, Next.js, and Bun are runnable here; Milvus, SeaweedFS (both runnable behind optional Compose profiles), OpenClaw, identity, cache, and search are introduced only when a product needs them.
 - **AI-friendly project context:** `AGENTS.md` and the docs tell coding agents how the repository is organized, what constraints to keep, and how to prove a change works.
 - **Reproducible delivery:** the Bun lockfile, CI pipeline, security boundaries, and release checklist make verification part of the starter rather than an afterthought.
 - **Replaceable model access:** application code talks to an adapter and configuration, so model and hosting choices can change without rewriting product logic.
@@ -70,6 +70,7 @@ The starter was refreshed on **2026-10-01**. Exact application package versions 
 
 - [Agent instructions](AGENTS.md)
 - [Architecture and optional services](docs/architecture.md)
+- [Retrieval and object storage: pgvector, Milvus, SeaweedFS](docs/retrieval.md)
 - [Recommended supporting tools](docs/recommended-tooling.md)
 - [Getting started](docs/getting-started.md)
 - [AI integration](docs/ai.md)

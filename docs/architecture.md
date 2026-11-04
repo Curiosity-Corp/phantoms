@@ -10,7 +10,8 @@ flowchart TD
   API -. optional app integration .-> AI[AI adapter]
   API -. scoped task request .-> Agent[OpenClaw agent service]
   Agent -. allowlisted tools .-> API
-  API -. optional semantic retrieval .-> Vector[Milvus]
+  API -. optional semantic retrieval .-> PGV[pgvector in PostgreSQL]
+  API -. graduation path .-> Vector[Milvus]
   Vector -. object blocks and indexes .-> Object[SeaweedFS S3 API]
   Repo[Turborepo workspace] --> Web
   Repo --> API
@@ -28,8 +29,8 @@ flowchart TD
 | **N — Next.js** | `apps/web` owns the browser experience. | The starter builds a static App Router site so the deployed app needs no additional JavaScript server runtime. Add server rendering only after its Bun runtime path is independently proven for the chosen hosting setup. |
 | **T — Turborepo** | Root scripts define the task graph. | Workspaces and `bun.lock` make installs repeatable. CI runs the same commands as local development. |
 | **O — OpenClaw** | A separate, optional agent service. | Treat model output and fetched content as untrusted. Keep tools deny-by-default and agent workspaces isolated. |
-| **M — Milvus** | An optional retrieval service. | Add when vector or hybrid search has a measured need. Benchmark indexing, query quality, memory, and backup/restore before production. |
-| **S — SeaweedFS** | Optional S3-compatible object storage. | Add for binary data or Milvus object storage after verifying the exact client/backend semantics and recovery process. |
+| **M — Milvus** | An optional retrieval service. | Start with pgvector in PostgreSQL; move to Milvus when a measured need justifies it. The `retrieval` Compose profile runs it. See [retrieval.md](retrieval.md). |
+| **S — SeaweedFS** | Optional S3-compatible object storage. | The `objects` Compose profile runs it; Milvus uses it too. Add for binary data or Milvus object storage after verifying your client and recovery process. |
 
 ## Core versus optional services
 
@@ -40,7 +41,7 @@ The runnable starter includes PostgreSQL, a Hono API, a static Next.js site, and
 | Identity | A route serves more than the local developer. | OIDC provider such as Keycloak; API authorization and tenant checks remain application responsibilities. |
 | Cache / queue | Measured latency, background work, or coordination requires it. | Redis or another managed queue/cache. Define expiry, retry, and idempotency behavior. |
 | User search | Relational filtering is no longer the right search experience. | Meilisearch; define index synchronization and deletion behavior. |
-| Retrieval | Semantic/hybrid search improves a tested workflow. | Milvus, embeddings, and an object store such as SeaweedFS. Track source IDs, authorization, freshness, and deletion through every index. |
+| Retrieval | Semantic/hybrid search improves a tested workflow. | Step 1: pgvector in the existing PostgreSQL (one table, one backup story). Step 2, when measured needs outgrow it: Milvus with an object store such as SeaweedFS ([retrieval.md](retrieval.md)). Track source IDs, authorization, freshness, and deletion through every index. |
 | Agents | A product has bounded work that benefits from tools or multi-step orchestration. | OpenClaw behind an authenticated internal interface with per-agent tools, resource limits, audit records, and a human approval step for consequential actions. |
 | Observability | The app has an operational target and can act on telemetry. | Metrics, structured logs, traces, alerts, and dashboards. Avoid sending secrets or personal content in telemetry. |
 

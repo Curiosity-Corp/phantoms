@@ -140,6 +140,82 @@ database-integration:
     - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
+# Optional retrieval stack: pgvector, then Milvus 3 with etcd and SeaweedFS (the
+# `pgvector`, `retrieval` and `objects` Compose profiles). It runs on pipeline
+# schedules and can be started by hand on a merge request; it never runs on
+# ordinary pushes, so the default path stays light and needs none of these
+# images. Create the schedule in the project's CI/CD settings. The image
+# versions repeat compose.yaml; change them together (docs/retrieval.md).
+retrieval-integration:
+  stage: preflight
+  image: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
+  services:
+    - name: '${IMAGE_REGISTRY}/dockerhub-proxy/pgvector/pgvector:0.8.6-pg18'
+      alias: pgvector
+      variables:
+        POSTGRES_DB: 'phantoms_test'
+        POSTGRES_USER: 'phantoms'
+        POSTGRES_PASSWORD: 'ci-only-password'
+    - name: '${IMAGE_REGISTRY}/dockerhub-proxy/chrislusf/seaweedfs:4.48'
+      alias: seaweedfs
+      command: ['server', '-dir=/data', '-s3', '-s3.port=8333', '-master.volumeSizeLimitMB=512']
+      variables:
+        AWS_ACCESS_KEY_ID: 'ci-only-access'
+        AWS_SECRET_ACCESS_KEY: 'ci-only-secret'
+    - name: 'quay.io/coreos/etcd:v3.5.25'
+      alias: etcd
+      command: ['etcd', '--advertise-client-urls=http://etcd:2379', '--listen-client-urls=http://0.0.0.0:2379', '--data-dir=/etcd']
+    - name: '${IMAGE_REGISTRY}/dockerhub-proxy/milvusdb/milvus:v3.0.3'
+      alias: milvus
+      command: ['milvus', 'run', 'standalone']
+      variables:
+        ETCD_ENDPOINTS: 'etcd:2379'
+        MINIO_ADDRESS: 'seaweedfs:8333'
+        MINIO_PORT: '8333'
+        MINIO_ACCESS_KEY_ID: 'ci-only-access'
+        MINIO_SECRET_ACCESS_KEY: 'ci-only-secret'
+        MINIO_USESSL: 'false'
+        MINIO_BUCKETNAME: 'milvus'
+  variables:
+    NEXT_TELEMETRY_DISABLED: '1'
+    RETRIEVAL_INTEGRATION: '1'
+    PGVECTOR_DATABASE_URL: 'postgres://phantoms:ci-only-password@pgvector:5432/phantoms_test'
+    S3_ENDPOINT: 'http://seaweedfs:8333'
+    S3_ACCESS_KEY: 'ci-only-access'
+    S3_SECRET_KEY: 'ci-only-secret'
+    MILVUS_URL: 'http://milvus:19530'
+    MILVUS_BUCKET: 'milvus'
+  timeout: 20m
+  script:
+    - bun --version
+    - bun install --frozen-lockfile
+    # The services start concurrently with this job and Milvus needs etcd and
+    # SeaweedFS first (it retries on its own), so wait for each one to answer
+    # before testing. A service that never comes up fails the job.
+    - |
+      bun -e '
+        const checks = {
+          pgvector: () => Bun.connect({ hostname: "pgvector", port: 5432, socket: { data() {}, open(c) { c.end(); } } }),
+          seaweedfs: () => fetch("http://seaweedfs:9333/cluster/status").then((r) => { if (!r.ok) throw new Error(String(r.status)); }),
+          milvus: () => fetch("http://milvus:9091/healthz").then((r) => { if (!r.ok) throw new Error(String(r.status)); }),
+        };
+        for (const [name, check] of Object.entries(checks)) {
+          let ok = false;
+          for (let i = 1; i <= 90 && !ok; i++) {
+            try { await check(); ok = true; } catch { if (i % 5 === 0) console.log(`waiting for ${name} (${i}/90)`); await Bun.sleep(4000); }
+          }
+          if (!ok) { console.error(`${name} did not become ready`); process.exit(1); }
+          console.log(`${name} ready`);
+        }
+      '
+    - bun run db:migrate:vector
+    - bun test packages/db apps/api/test/retrieval.integration.test.ts
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+      allow_failure: true
+
 # Check the Dockerfile on merge requests without privileged execution or
 # registry credentials. A static lint catches syntax and common image mistakes
 # while keeping untrusted code on an unprivileged runner. A full

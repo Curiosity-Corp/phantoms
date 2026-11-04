@@ -58,6 +58,16 @@ bun run db:check
 curl --fail http://127.0.0.1:4000/readyz
 ```
 
+## Optional: retrieval and object storage
+
+Nothing above starts Milvus, SeaweedFS or pgvector. To try them, read [Retrieval and object storage](retrieval.md); the short form is:
+
+```sh
+export COMPOSE_PROJECT_NAME=phantoms
+docker compose --profile pgvector up -d --wait postgres-pgvector       # step 1: pgvector
+docker compose --profile retrieval --profile objects up -d --wait      # step 2: Milvus + SeaweedFS
+```
+
 ## AI adapter
 
 The `@phantoms/ai` package contains a small provider adapter, but no model call runs on startup. Configure `AI_BASE_URL`, `AI_MODEL`, and, when required, `AI_API_KEY` on the server before connecting this package to a user-facing workflow. Do not add model credentials to `NEXT_PUBLIC_*` variables.
