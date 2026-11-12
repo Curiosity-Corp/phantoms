@@ -2,6 +2,8 @@
 
 **A free, agent-ready learning stack for building modern TypeScript applications with Bun.**
 
+_Last verified: 2026-11-11_ (README, `AGENTS.md`, the architecture guide and the decision index checked against the code on `main`)
+
 PHANTOMS gives a person or an AI coding agent one coherent starting point for the application, data, AI, retrieval, and delivery decisions that otherwise get re-decided in every project. The repository is both a learning guide and a runnable starter: clone it, read `AGENTS.md`, follow the setup guide, and grow only the services the app needs.
 
 ## The stack

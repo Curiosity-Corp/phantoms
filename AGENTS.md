@@ -1,6 +1,8 @@
 # Instructions for coding agents
 
-Use this file as the entry point when an AI coding agent is asked to create or change a PHANTOMS app. It is the single source of policy: `CLAUDE.md` imports it, and nested `AGENTS.md` files in `apps/api`, `packages/db` and `packages/ai` add rules for that folder only. The nearest file to the code you edit wins; an explicit instruction from the person you work for wins over all of them.
+_Last verified: 2026-11-11_
+
+Use this file as the entry point when an AI coding agent is asked to create or change a PHANTOMS app. It is the single source of policy: `CLAUDE.md` imports it, and nested `AGENTS.md` files in `apps/api`, `apps/mcp`, `apps/web`, `packages/db` and `packages/ai` add rules for that folder only. The nearest file to the code you edit wins; an explicit instruction from the person you work for wins over all of them.
 
 ## Commands
 
@@ -11,14 +13,18 @@ bun install --frozen-lockfile   # install exactly what bun.lock says
 bun run dev                     # web on :3000, API on :4000
 bun run lint                    # Biome
 bun run check:agents            # AGENTS.md commands and links still valid
-bun run typecheck               # tsc in every package
+bun run check:versions          # docs/version-policy.md matches the manifests
+bun run check:public            # no internal hosts or private addresses in tracked files
+bun run typecheck               # tsc in every package and the e2e folder
 bun test                        # all tests
 bun test apps/api/test/app.test.ts   # one test file
 bun test -t "liveness"          # tests whose name matches
 bun run db:check                # migration consistency, needs no database
 bun run db:generate             # new migration after a schema change
 bun run db:migrate              # apply migrations to the local disposable database
+bun run db:migrate:vector       # optional pgvector migrations (pgvector profile)
 bun run build                   # build web and API
+bun run test:e2e                # Playwright journeys against the built web app
 bun audit --audit-level high    # dependency audit
 ```
 

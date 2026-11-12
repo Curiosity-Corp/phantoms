@@ -3,6 +3,7 @@
 //  - AGENTS.md is over the size budget
 //  - a `bun run <script>` in the Commands block is not defined in package.json
 //  - a relative link in AGENTS.md, the nested AGENTS.md files or docs/agents/ does not resolve
+//  - README.md or AGENTS.md has no `_Last verified: YYYY-MM-DD_` stamp
 // Run with: bun run check:agents
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -12,9 +13,14 @@ const MAX_LINES = 120;
 const MAX_BYTES = 8_000;
 const NESTED = [
   'apps/api/AGENTS.md',
+  'apps/mcp/AGENTS.md',
   'packages/db/AGENTS.md',
   'packages/ai/AGENTS.md',
 ];
+// Re-stamp these when you check them against the code; the date is not
+// enforced here, only that a reviewer recorded one.
+const STAMPED = ['README.md', 'AGENTS.md'];
+const STAMP = /_Last verified: (\d{4}-\d{2}-\d{2})_/;
 
 const errors: string[] = [];
 const fail = (message: string) => errors.push(message);
@@ -30,6 +36,16 @@ function read(path: string): string | undefined {
 const agents = read('AGENTS.md');
 const claude = read('CLAUDE.md');
 for (const path of NESTED) read(path);
+
+for (const path of STAMPED) {
+  const text = read(path);
+  const date = text ? STAMP.exec(text)?.[1] : undefined;
+  if (text && !date) {
+    fail(`${path} needs a "_Last verified: YYYY-MM-DD_" stamp`);
+  } else if (date && Number.isNaN(Date.parse(`${date}T00:00:00Z`))) {
+    fail(`${path} has an invalid Last verified date: ${date}`);
+  }
+}
 
 if (claude && !/^@AGENTS\.md\s*$/m.test(claude)) {
   fail('CLAUDE.md must import AGENTS.md with a line containing @AGENTS.md');

@@ -2,6 +2,28 @@
 
 This small decision log records choices that coding agents should not reverse casually.
 
+_Last verified: 2026-11-11_ (index checked against the entries below)
+
+## Index
+
+| No. | Decision | Date | Status |
+| --- | --- | --- | --- |
+| 001 | Bun is the required JavaScript runtime | 2026-10-01 | Active |
+| 002 | AI is provider-neutral | 2026-10-01 | Active |
+| 003 | Stateful PHANTOMS services are opt-in | 2026-10-01 | Active |
+| 004 | Static Next.js output is the starter deployment default | 2026-10-01 | Active |
+| 005 | GitLab is CI/CD source; public GitHub is a mirror | 2026-10-01 | Active |
+| 006 | Turborepo stays, with a documented fallback | 2026-11-03 | Active |
+| 007 | Drizzle ORM stays on the 0.45 line until 1.0 is stable | 2026-11-03 | Active |
+| 008 | Zod is the schema library; Standard Schema is the exit | 2026-11-03 | Active |
+| 009 | Redis stays optional; Valkey is the permissively licensed alternative | 2026-11-03 | Active |
+| 010 | Keycloak remains the self-hosted OIDC example | 2026-11-03 | Active |
+| 011 | The AI layer stays a thin adapter on the AI SDK | 2026-11-03 | Active |
+| 012 | Observability and browser tests are small, opt-in and pinned | 2026-11-03 | Active |
+| 013 | pgvector first; Milvus and SeaweedFS as tested optional profiles | 2026-11-04 | Active |
+
+Add a row here with every new entry. A superseded entry keeps its row with status "Superseded by NNN".
+
 ## 001 — Bun is the required JavaScript runtime
 
 **Date:** 2026-10-01
