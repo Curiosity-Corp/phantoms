@@ -60,7 +60,7 @@ curl --fail http://127.0.0.1:4000/readyz
 
 ## AI adapter
 
-The `@phantoms/ai` package contains a small provider adapter, but no model call runs on startup. Configure `AI_BASE_URL`, `AI_MODEL`, and, when required, `AI_API_KEY` on the server before connecting this package to a user-facing workflow. Do not add model credentials to `NEXT_PUBLIC_*` variables.
+The `@phantoms/ai` package contains a small provider adapter, but no model call runs on startup. Configure `AI_BASE_URL`, `AI_MODEL`, and, when required, `AI_API_KEY` on the server before connecting this package to a user-facing workflow. Do not add model credentials to `NEXT_PUBLIC_*` variables. See [the AI layer](ai.md) for structured output, tools, the optional MCP client, budgets, and the fake adapter used in tests.
 
 ## Stop local services
 

@@ -7,9 +7,11 @@
   },
   "scripts": {
     "build": "bun build src/index.ts --target=bun --outdir=dist",
-    "typecheck": "bun run --bun tsc --noEmit"
+    "typecheck": "bun run --bun tsc --noEmit",
+    "eval": "bun run eval/run.ts"
   },
   "dependencies": {
+    "@ai-sdk/mcp": "2.0.90",
     "@ai-sdk/openai-compatible": "3.0.84",
     "ai": "7.0.162",
     "zod": "4.6.7"
