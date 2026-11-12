@@ -13,7 +13,7 @@ PHANTOMS gives a person or an AI coding agent one coherent starting point for th
 | **A** | **AI** | Provider-neutral model access behind a replaceable adapter |
 | **N** | [Next.js](https://nextjs.org/) | Web application and App Router |
 | **T** | [Turborepo](https://turborepo.dev/) | Task graph and monorepo caching |
-| **O** | [OpenClaw](https://github.com/openclaw/openclaw) | Optional agent runtime for scoped tool workflows |
+| **O** | [OpenClaw](https://github.com/openclaw/openclaw) | One example of an optional, separately deployed agent runtime (a personal or team assistant gateway) |
 | **M** | [Milvus](https://milvus.io/) | Optional vector and hybrid retrieval |
 | **S** | [SeaweedFS](https://github.com/seaweedfs/seaweedfs) | Optional S3-compatible object storage |
 

@@ -167,6 +167,19 @@ It reads the same `AI_*` variables, grades each case with plain code, prints pas
 - Define what happens when the provider is slow or unavailable. User-facing work should have a clear fallback.
 - Keep unit tests deterministic. Use the fake adapter in tests; run separately gated evaluations for quality-sensitive behavior.
 
-## Agents and tool use
+## Agent runtime options
 
-An agent runtime is a separate capability from model inference and tool calling. Add OpenClaw only for a concrete workflow, expose a small allowlist of tools, and require explicit authorization for external side effects. See [Security](security.md) for the boundary and [OpenClaw's tool-permission guidance](https://docs.openclaw.ai/gateway/security/tool-permissions).
+Model inference and an agent runtime are different capabilities, and they point in opposite directions:
+
+- **The app calls a model.** Server-side code uses the adapter in `packages/ai`, with its own timeouts, budgets and an allowlist of tools the app defines.
+- **An agent runtime calls the app.** A separate program that holds its own conversation and tools (OpenClaw is one example: a personal or team assistant gateway, a Node application with its own identity) reaches the app through a narrow authenticated API and/or an MCP server. The app does not embed it or call it in-process.
+
+This keeps the **A** provider-neutral. The runtime picks its own model, and the app only decides what it is willing to expose. Any harness that can speak HTTP or MCP can attach the same way, so nothing in the app is specific to OpenClaw.
+
+To try it, set `MCP_BEARER_TOKEN` in your private `.env` to a random value of at least 32 characters (for example the output of `openssl rand -hex 32`), keep PostgreSQL and `DATABASE_URL` from the getting-started steps, and start the example, which is not part of the default dev, Compose or image path:
+
+```sh
+bun run --filter @phantoms/mcp start
+```
+
+It exposes two read-only task tools (`list_tasks`, `get_task`) over MCP's streamable HTTP transport at `http://127.0.0.1:4100/mcp`. Point your MCP client at that URL with an `Authorization: Bearer <token>` header. Add an agent runtime only for a concrete workflow, expose a small allowlist of tools, and require explicit authorization for external side effects. See [Agent runtime options](architecture.md#agent-runtime-options) for the pattern and the facts checked about OpenClaw on 2026-11-04, and [Security](security.md) for the boundary, the advisories page and [OpenClaw's tool-permission guidance](https://docs.openclaw.ai/gateway/security/tool-permissions).
