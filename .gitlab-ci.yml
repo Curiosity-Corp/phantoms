@@ -56,13 +56,14 @@ variables:
   # The shared template defaults to a private Alpine utility image. This
   # consumer uses Bun as its only JavaScript runtime.
   # The Harbor Docker Hub proxy is used by the internal runners; public users
-  # should use oven/bun:1.4.2-slim in the fallback shown in docs/ci-cd.md.
-  PREFLIGHT_IMAGE: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
+  # should use oven/bun:1.4.4-slim in the fallback shown in docs/ci-cd.md.
+  PREFLIGHT_IMAGE: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.4-slim'
   PREFLIGHT_REQUIRED_TOOLS: 'bun'
   PREFLIGHT_COMMANDS: >-
     bun install --frozen-lockfile &&
     bun run lint &&
     bun run typecheck &&
+    bun run check:versions &&
     bun run db:check
   TEST_COMMANDS: >-
     bun install --frozen-lockfile &&
@@ -97,7 +98,7 @@ secret-scan:
 
 dependency-audit:
   stage: security
-  image: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
+  image: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.4-slim'
   script:
     - bun install --frozen-lockfile
     - bun audit --audit-level high
@@ -110,7 +111,7 @@ dependency-audit:
 # service. The public fallback equivalent is documented in docs/ci-cd.md.
 database-integration:
   stage: preflight
-  image: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
+  image: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.4-slim'
   services:
     - name: '${IMAGE_REGISTRY}/dockerhub-proxy/library/postgres:18.6-alpine'
       alias: postgres
@@ -162,7 +163,7 @@ dockerfile-lint-mr:
 build:
   extends: .build:buildkit
   variables:
-    BUILD_ARGS: 'BUN_IMAGE=${DOCKERHUB_PROXY}/oven/bun:1.4.2-slim'
+    BUILD_ARGS: 'BUN_IMAGE=${DOCKERHUB_PROXY}/oven/bun:1.4.4-slim'
     # A new build attempt gets its own tag, so a manual retry cannot move the
     # image reference already verified by an earlier attempt in this pipeline.
     IMAGE_TAG: '${CI_COMMIT_SHORT_SHA}-${CI_PIPELINE_IID}-${CI_JOB_ID}'

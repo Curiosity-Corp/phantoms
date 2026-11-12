@@ -31,7 +31,7 @@ This is a learning starter, not a finished product or a claim that one stack fit
 
 ## Start here
 
-Prerequisites: [Bun 1.4.2](https://bun.sh/), Docker Compose, and Git. Use Bun commands for JavaScript tooling; do not substitute another JavaScript runtime or package manager.
+Prerequisites: [Bun 1.4.4](https://bun.sh/), Docker Compose, and Git. Use Bun commands for JavaScript tooling; do not substitute another JavaScript runtime or package manager.
 
 ```sh
 git clone https://github.com/Curiosity-Corp/phantoms.git
@@ -64,7 +64,7 @@ Merge requests run the core checks, PostgreSQL integration tests, and blocking s
 
 ## Recommended versions
 
-The starter was refreshed on **2026-10-01**. Exact application package versions are pinned in `package.json` and `bun.lock`; [the version policy](docs/version-policy.md) records the current baseline and update cadence. Review security advisories and compatibility before each scheduled dependency update.
+The starter was refreshed on **2026-11-03**. Exact application package versions are pinned in `package.json` and `bun.lock`; [the version policy](docs/version-policy.md) records the current baseline and update cadence. Review security advisories and compatibility before each scheduled dependency update.
 
 ## Documentation
 

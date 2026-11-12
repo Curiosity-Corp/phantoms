@@ -1,29 +1,32 @@
 # Version policy
 
-**Baseline reviewed:** 2026-10-01. Exact app dependencies are in `package.json` and `bun.lock`. Optional infrastructure versions below are learning references; the corresponding services are not all installed or integration-tested by this starter.
+**Baseline reviewed:** 2026-11-03. Exact app dependencies are in `package.json` and `bun.lock`. Optional infrastructure versions below are learning references; the corresponding services are not all installed or integration-tested by this starter.
 
 ## Application baseline
 
 | Component | Version | Notes |
 | --- | --- | --- |
-| Bun | 1.4.2 | Required runtime and package manager; exact `packageManager` pin. |
-| Turborepo | 2.11.6 | Local development dependency, not a floating CLI install. |
-| Next.js | 16.3.8 | Active LTS patch line as of the review date; static output in this starter. |
-| React / React DOM | 19.3.0 | Pinned with the web app. |
-| `@types/node` | 26.6.3 | Type declarations required by the Next.js checker; not an executable runtime. |
-| Hono | 4.13.12 | API framework; served through the Bun runtime's native HTTP server. |
-| AI SDK | 7.0.126 | Provider interface in the server-side AI package. |
+| Bun | 1.4.4 | Required runtime and package manager; exact `packageManager` pin. |
+| Turborepo | 2.11.10 | Local development dependency, not a floating CLI install. |
+| Next.js | 16.4.5 | Active LTS line as of the review date; static output in this starter. |
+| React / React DOM | 19.3.1 | Pinned with the web app. |
+| `@types/node` | 26.6.6 | Type declarations required by the Next.js checker; not an executable runtime. |
+| Hono | 4.13.16 | API framework; served through the Bun runtime's native HTTP server. |
+| AI SDK | 7.0.162 | Provider interface in the server-side AI package. |
+| Biome | 2.6.4 | Lint and format for code and JSON. Markdown and YAML are excluded in `biome.json` so docs are not reformatted by a tool upgrade. |
+| Drizzle ORM | 0.45.4 | Query builder and migration tool in `packages/db` (Drizzle Kit 0.31.11). |
+| postgres.js | 4.0.0 | PostgreSQL driver, a new major version taken in this refresh. The database integration job in CI runs against a real PostgreSQL service. |
 | PostgreSQL container | 18.6 | Local Compose only; production should pin an approved image digest. |
 
-Official sources: [Bun releases](https://github.com/oven-sh/bun/releases), [Turborepo support policy](https://turborepo.dev/docs/support-policy), [Next.js September 2026 security release](https://nextjs.org/blog/september-2026-security-release), [Hono releases](https://github.com/honojs/hono/releases), [AI SDK releases](https://github.com/vercel/ai/releases), and [PostgreSQL versioning](https://www.postgresql.org/support/versioning/).
+Official sources, opened on 2026-11-03: [Bun releases](https://github.com/oven-sh/bun/releases), [Turborepo support policy](https://turborepo.dev/docs/support-policy), [Next.js September 2026 security release](https://nextjs.org/blog/september-2026-security-release), [Hono releases](https://github.com/honojs/hono/releases), [Next.js support policy](https://nextjs.org/support-policy), [AI SDK releases](https://github.com/vercel/ai/releases), [Biome](https://github.com/biomejs/biome/releases), [Drizzle](https://github.com/drizzle-team/drizzle-orm/releases), and [PostgreSQL versioning](https://www.postgresql.org/support/versioning/).
 
 ## Optional service reference pins
 
 | Service | Reference version | Before adoption |
 | --- | --- | --- |
-| OpenClaw | `v2026.9.7` | Review the release, isolate the gateway, and configure per-agent tool permissions. |
-| Milvus | `v3.0.2` | Verify object-store semantics, backups, query workload, and exact SeaweedFS compatibility. |
-| SeaweedFS | `4.48` | Test S3 behavior, retention, access control, and recovery with the chosen client. |
+| OpenClaw | `v2026.10.10` | Fast-moving: review its published security advisories before each pin bump. Review the release, isolate the gateway, and configure per-agent tool permissions. |
+| Milvus | `v3.0.5` | Verify object-store semantics, backups, query workload, and exact SeaweedFS compatibility. |
+| SeaweedFS | `4.52` | Test S3 behavior, retention, access control, and recovery with the chosen client. |
 
 Sources: [OpenClaw releases](https://github.com/openclaw/openclaw/releases), [Milvus release notes](https://milvus.io/docs/release_notes.md), and [SeaweedFS releases](https://github.com/seaweedfs/seaweedfs/releases).
 

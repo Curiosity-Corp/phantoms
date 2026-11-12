@@ -1,0 +1,35 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "labels": ["dependencies"],
+  "schedule": ["before 6am on monday"],
+  "automerge": false,
+  "packageRules": [
+    {
+      "groupName": "Next.js and React",
+      "matchPackageNames": [
+        "next",
+        "react",
+        "react-dom",
+        "@types/react",
+        "@types/react-dom"
+      ]
+    },
+    {
+      "groupName": "Hono",
+      "matchPackageNames": ["hono", "@hono/bun"]
+    },
+    {
+      "groupName": "Drizzle",
+      "matchPackageNames": ["drizzle-orm", "drizzle-kit"]
+    },
+    {
+      "groupName": "AI SDK",
+      "matchPackageNames": ["ai", "/^@ai-sdk//"]
+    },
+    {
+      "groupName": "Bun",
+      "matchPackageNames": ["bun", "@types/bun", "oven/bun"]
+    }
+  ]
+}

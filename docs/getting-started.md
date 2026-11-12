@@ -4,7 +4,7 @@ This walkthrough runs the Next.js web app, Hono API, and PostgreSQL locally. Bun
 
 ## Prerequisites
 
-- Bun 1.4.2
+- Bun 1.4.4
 - Docker Compose
 - Git
 
@@ -81,4 +81,4 @@ docker compose down --volumes
 - **Port already in use:** change `API_PORT` or stop the process holding 4000; change the web port through the Next dev command if 3000 is occupied.
 - **Database unavailable:** check `docker compose ps`, `docker compose logs postgres`, and `DATABASE_URL` in `.env`.
 - **Migration fails:** confirm the database is healthy, then run `bun run db:migrate` again. Review migration files before applying them to valuable data.
-- **Frozen install fails:** verify Bun 1.4.2 and restore `bun.lock` from version control; do not regenerate the lockfile as an automatic fix.
+- **Frozen install fails:** verify Bun 1.4.4 and restore `bun.lock` from version control; do not regenerate the lockfile as an automatic fix.

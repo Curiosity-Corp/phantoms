@@ -1,4 +1,4 @@
-ARG BUN_IMAGE=oven/bun:1.4.2-slim
+ARG BUN_IMAGE=oven/bun:1.4.4-slim
 
 FROM ${BUN_IMAGE} AS build
 WORKDIR /app
