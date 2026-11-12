@@ -15,7 +15,7 @@ document, including a local container build and runtime smoke check.
 Use the following order for a real PHANTOMS application:
 
 1. Install the exact dependency graph with `bun install --frozen-lockfile`.
-2. Run formatting, type checks, and schema/migration consistency checks.
+2. Run formatting, type checks, the agent-instruction check (`bun run check:agents`, which keeps `AGENTS.md` within its size budget and its commands and links valid), and schema/migration consistency checks.
 3. Apply migrations and run database integration tests against a disposable
    PostgreSQL service; run the production build before an image is built.
 4. Scan source and dependencies for secrets and known vulnerabilities.
@@ -57,7 +57,8 @@ The include tracks `ref: main`: jobs that call the Kubernetes API carry the
 `ci-dispatch` runner tag only in current upstream, and an older pinned commit
 loses cluster access. The `validate-only.yml` composition supplies shared preflight and SAST jobs;
 consumer-owned jobs add Bun dependency auditing, a disposable PostgreSQL
-integration test, and a Dockerfile lint for merge requests. Merge requests
+integration test, a browser end-to-end job (see below), and a Dockerfile lint
+for merge requests. Merge requests
 stay on eligible unprivileged runners and do not start a container builder.
 On protected `main`, the Launch Sequence BuildKit dispatcher builds a
 build-attempt-specific image tag in an isolated Kubernetes job and publishes
@@ -86,13 +87,9 @@ proxy, including the pinned Semgrep 1.178.0 and Gitleaks 8.30.1 scanners.
 The source project is private. Do not copy its templates into a public repo or
 put credentials in this repository. If your GitLab group has an approved
 Launch Sequence consumer, pin a reviewed SHA and run the linter from a local
-checkout before opening the merge request:
-
-```bash
-python3 scripts/lint-consumer.py \
-  --launch-sequence-path "$LAUNCH_SEQUENCE_CHECKOUT" \
-  .gitlab-ci.yml
-```
+checkout before opening the merge request. The linter ships with the private
+Launch Sequence project, not with this repository, so readers without access
+to that project cannot run it and should use the public fallback below.
 
 The source checkout's canonical documentation is:
 
@@ -118,18 +115,21 @@ variables:
   IMAGE_NAME: 'my-phantoms-app'
   HARBOR_PROJECT: 'apps'
   DOCKERFILE: 'Dockerfile'
-  PREFLIGHT_IMAGE: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
+  PREFLIGHT_IMAGE: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.4-slim'
   PREFLIGHT_REQUIRED_TOOLS: 'bun'
   PREFLIGHT_COMMANDS: >-
     bun install --frozen-lockfile &&
     bun run lint &&
     bun run typecheck &&
+    bun run check:versions &&
+    bun run check:agents &&
+    bun run check:public &&
     bun run db:check
   TEST_COMMANDS: >-
     bun install --frozen-lockfile &&
     bun test &&
     bun run build
-  LOCKFILE_IMAGE: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
+  LOCKFILE_IMAGE: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.4-slim'
   LOCKFILE_COMMANDS: 'bun install --frozen-lockfile'
 ```
 
@@ -158,10 +158,10 @@ artifact and report handoffs through the DAG.
 If the private Launch Sequence project is unavailable, replace the private
 `include` with this self-contained GitLab configuration. It keeps Bun as the
 only JavaScript runtime. Pin or update each image deliberately; this October
-2026 example uses Bun 1.4.2, Hadolint 2.15.1, and Docker 29.8.1.
+2026 example uses Bun 1.4.4, Hadolint 2.15.1, and Docker 29.8.1.
 
 ```yaml
-image: oven/bun:1.4.2-slim
+image: oven/bun:1.4.4-slim
 
 workflow:
   rules:
@@ -191,6 +191,11 @@ typecheck:
   script:
     - bun run typecheck
 
+check-agents:
+  stage: verify
+  script:
+    - bun run check:agents
+
 test:
   stage: verify
   script:
@@ -201,9 +206,36 @@ build:
   script:
     - bun run build
 
+# Browsers come from the pinned Playwright image, not from a download in the
+# job. Keep the image tag equal to the @playwright/test version.
+e2e:
+  stage: verify
+  image: mcr.microsoft.com/playwright:v1.64.1-noble
+  variables:
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+  before_script:
+    - |
+      BUN_VERSION="$(sed -n 's/.*"packageManager": "bun@\([0-9.]*\)".*/\1/p' package.json)"
+      test -n "$BUN_VERSION"
+      npm install --global --prefix /tmp/bun-npm "bun@${BUN_VERSION}"
+      export PATH="/tmp/bun-npm/bin:${PATH}"
+    - bun --version
+    - bun install --frozen-lockfile
+  script:
+    - bun run build
+    - bun run test:e2e
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - playwright-report/
+      - test-results/
+    reports:
+      junit: test-results/e2e-junit.xml
+
 database-integration:
   stage: verify
-  image: oven/bun:1.4.2-slim
+  image: oven/bun:1.4.4-slim
   services:
     - name: postgres:18.6-alpine
       alias: postgres
@@ -215,6 +247,33 @@ database-integration:
   script:
     - bun run db:migrate
     - bun test
+
+# Optional: pgvector and SeaweedFS (S3). Run it from a pipeline schedule or by
+# hand; see docs/retrieval.md. Wait for each service before testing (the
+# `pgvector-objects-integration` job in .gitlab-ci.yml does). To add Milvus on
+# a runner that lets the Milvus image run as its own user (uid 999), add the
+# etcd and Milvus services, a wait for both, and RETRIEVAL_INTEGRATION=1.
+pgvector-objects-integration:
+  stage: verify
+  image: oven/bun:1.4.4-slim
+  services:
+    - name: pgvector/pgvector:0.8.6-pg18
+      alias: pgvector
+    - name: chrislusf/seaweedfs:4.48
+      alias: seaweedfs
+      command: ['server', '-dir=/data', '-s3', '-s3.port=8333']
+  variables:
+    OBJECTS_INTEGRATION: '1'
+    PGVECTOR_DATABASE_URL: 'postgres://phantoms:ci-only-password@pgvector:5432/phantoms_test'
+    S3_ENDPOINT: 'http://seaweedfs:8333'
+  script:
+    - bun run db:migrate:vector
+    - bun test packages/db apps/api/test/retrieval.integration.test.ts
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+      allow_failure: true
 
 db-check:
   stage: verify
@@ -275,7 +334,7 @@ container-build-smoke:
     - docker info
     - >-
       docker build --pull
-      --build-arg BUN_IMAGE=oven/bun:1.4.2-slim
+      --build-arg BUN_IMAGE=oven/bun:1.4.4-slim
       --tag "phantoms-smoke:${CI_COMMIT_SHA}" .
     - docker run --detach --name phantoms-smoke --env DATABASE_URL=postgres://phantoms:ci-only@127.0.0.1:5432/phantoms --env API_BEARER_TOKEN=ci-smoke "phantoms-smoke:${CI_COMMIT_SHA}"
     - |
@@ -326,20 +385,60 @@ uses different tools:
 | --- | --- |
 | `bun run lint` | formatting and static checks |
 | `bun run typecheck` | TypeScript and generated-type validation |
+| `bun run check:versions` | Versions in `docs/version-policy.md` match the manifests |
+| `bun run check:agents` | `AGENTS.md` size budget, command and link check |
+| `bun run check:public` | No internal hostnames, private addresses or vendor-as-definition text in tracked files |
 | `bun test` | deterministic unit and integration tests |
 | `bun run build` | production build, when the app has a build step |
 | `bun run db:check` | schema and migration validation |
 | `database-integration` | apply migrations and exercise database access with disposable PostgreSQL |
-| `bun run test:e2e` | browser journey tests when the app has user journeys that need browser coverage |
+| `pgvector-objects-integration` | optional: pgvector search and the SeaweedFS S3 API in disposable services, on a schedule or by hand ([retrieval.md](retrieval.md)) |
+| `bun run test:e2e` | Playwright browser journeys against the built static web app (run `bun run build` first); needs browsers, not network |
 
 CI owns the order and environment; the repository owns the commands. Keep
 network calls, model calls, and mutable external state out of unit tests. Use
 fixtures or disposable services for tests, and keep production AI credentials
 out of merge request pipelines.
 
-The example starter has no interactive browser flow, so it does not define a
-`test:e2e` script. Add one when an app has a browser journey worth protecting;
-run it against the built candidate in a browser-capable CI job.
+### Browser end-to-end tests
+
+`bun run test:e2e` runs the Playwright journeys in `e2e/` against the built
+static web app. `apps/api/test/e2e-server.ts` serves that build with the real
+Hono app and an in-memory task store, so the run needs no PostgreSQL, no model
+provider and no network once the browsers are installed. The web app has no
+task screen yet, so the task create and list journey calls the API from the
+page; replace it with click-through steps when a task screen exists.
+
+CI runs it as the `e2e` job in a pinned Playwright container image,
+`mcr.microsoft.com/playwright:v<version>-noble`, instead of downloading
+browsers on every run. The image carries the browsers and their system
+libraries; it also carries a Node binary, which Playwright's runner does not
+use here, because `test:e2e` runs the runner with `bun run --bun`. The job
+installs the Bun release named by `packageManager` (the Playwright image has no
+Bun) and fails when the installed `@playwright/test` version differs from
+`PLAYWRIGHT_VERSION`, so the browsers and the library cannot drift apart. Bump
+`@playwright/test` and `PLAYWRIGHT_VERSION` together. See decision 012 in
+[decisions.md](decisions.md).
+
+### Optional retrieval job
+
+`pgvector-objects-integration` starts pgvector and SeaweedFS as job services,
+applies the separate vector migrations, and runs the tests that
+`OBJECTS_INTEGRATION=1` and `PGVECTOR_DATABASE_URL` enable: vector insert and
+search, and an S3 write, read and delete. It is not part of the default path: it
+runs on pipeline schedules and can be started manually on a merge request
+(`allow_failure: true`, so an unstarted job does not block the merge). Create a
+schedule under CI/CD settings. A failing scheduled run shows as a failed
+pipeline. A scheduled pipeline on the default branch also runs that branch's
+other jobs, including the image build.
+
+Milvus is not in this job. On the shared runner pool every job container starts
+as uid 1000 and a per-service `user` is refused, while the Milvus image can only
+be run by its own uid 999 (the service exits with "Permission denied"). Milvus
+is therefore proved locally with `RETRIEVAL_INTEGRATION=1`
+([retrieval.md](retrieval.md)). Running it in CI needs a runner that allows the
+service to run as uid 999, or an image rebuilt to run as an arbitrary user; that
+is a runner or platform decision.
 
 ## Promotion and operations checklist
 

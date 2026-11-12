@@ -56,13 +56,16 @@ variables:
   # The shared template defaults to a private Alpine utility image. This
   # consumer uses Bun as its only JavaScript runtime.
   # The Harbor Docker Hub proxy is used by the internal runners; public users
-  # should use oven/bun:1.4.2-slim in the fallback shown in docs/ci-cd.md.
-  PREFLIGHT_IMAGE: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
+  # should use oven/bun:1.4.4-slim in the fallback shown in docs/ci-cd.md.
+  PREFLIGHT_IMAGE: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.4-slim'
   PREFLIGHT_REQUIRED_TOOLS: 'bun'
   PREFLIGHT_COMMANDS: >-
     bun install --frozen-lockfile &&
     bun run lint &&
     bun run typecheck &&
+    bun run check:versions &&
+    bun run check:agents &&
+    bun run check:public &&
     bun run db:check
   TEST_COMMANDS: >-
     bun install --frozen-lockfile &&
@@ -71,6 +74,8 @@ variables:
   IMAGE_NAME: 'phantoms'
   HARBOR_PROJECT: 'apps'
   NEXT_TELEMETRY_DISABLED: '1'
+  # Playwright library and browser image move together; see docs/ci-cd.md.
+  PLAYWRIGHT_VERSION: '1.64.1'
 
 # The shared SAST job defaults to advisory findings. Make source and secret
 # findings blocking for this learning repository.
@@ -97,7 +102,7 @@ secret-scan:
 
 dependency-audit:
   stage: security
-  image: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
+  image: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.4-slim'
   script:
     - bun install --frozen-lockfile
     - bun audit --audit-level high
@@ -110,7 +115,7 @@ dependency-audit:
 # service. The public fallback equivalent is documented in docs/ci-cd.md.
 database-integration:
   stage: preflight
-  image: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.2-slim'
+  image: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.4-slim'
   services:
     - name: '${IMAGE_REGISTRY}/dockerhub-proxy/library/postgres:18.6-alpine'
       alias: postgres
@@ -140,6 +145,110 @@ database-integration:
     - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
+# Browser journeys (bun run test:e2e) against the built static web app, in the
+# pinned Playwright image so no browser is downloaded during the job. The
+# image has no Bun, so the job installs the exact release named by
+# packageManager from the npm registry. Playwright's own runner is started
+# with `bun run --bun`; the image's Node binary is not used. The journeys use
+# an in-memory task store: no PostgreSQL service and no other network.
+e2e:
+  stage: preflight
+  image: 'mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-noble'
+  variables:
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+  script:
+    - |
+      BUN_VERSION="$(sed -n 's/.*"packageManager": "bun@\([0-9.]*\)".*/\1/p' package.json)"
+      test -n "$BUN_VERSION"
+      # The job user cannot write to the image's global prefix, so install
+      # into a temporary prefix and put it on PATH for the rest of the script.
+      npm install --global --prefix /tmp/bun-npm "bun@${BUN_VERSION}"
+      export PATH="/tmp/bun-npm/bin:${PATH}"
+    - bun --version
+    - bun install --frozen-lockfile
+    # The image tag and the library must be the same Playwright release.
+    - test "$(bun run --bun playwright --version)" = "Version ${PLAYWRIGHT_VERSION}"
+    - bun run build
+    - bun run test:e2e
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - playwright-report/
+      - test-results/
+    reports:
+      junit: test-results/e2e-junit.xml
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# Optional retrieval services: pgvector and SeaweedFS (the `pgvector` and
+# `objects` Compose profiles) as disposable job services. It runs on pipeline
+# schedules and can be started by hand on a merge request; it never runs on
+# ordinary pushes, so the default path stays light and needs none of these
+# images. Create the schedule in the project's CI/CD settings. Versions repeat
+# compose.yaml; change them together (docs/retrieval.md).
+#
+# Milvus is not part of this job. The shared runner pool starts every container
+# as uid 1000 and refuses a per-service user, and the Milvus image can only be
+# run by its own uid 999, so Milvus cannot start here. The Milvus job for a
+# runner without that limit is in docs/ci-cd.md.
+pgvector-objects-integration:
+  stage: preflight
+  image: '${IMAGE_REGISTRY}/dockerhub-proxy/oven/bun:1.4.4-slim'
+  services:
+    - name: '${IMAGE_REGISTRY}/dockerhub-proxy/pgvector/pgvector:0.8.6-pg18'
+      alias: pgvector
+      variables:
+        POSTGRES_DB: 'phantoms_test'
+        POSTGRES_USER: 'phantoms'
+        POSTGRES_PASSWORD: 'ci-only-password'
+    - name: '${IMAGE_REGISTRY}/dockerhub-proxy/chrislusf/seaweedfs:4.48'
+      alias: seaweedfs
+      command: ['server', '-dir=/data', '-s3', '-s3.port=8333', '-master.volumeSizeLimitMB=512']
+      variables:
+        AWS_ACCESS_KEY_ID: 'ci-only-access'
+        AWS_SECRET_ACCESS_KEY: 'ci-only-secret'
+  variables:
+    NEXT_TELEMETRY_DISABLED: '1'
+    # Print the service containers' logs in the job log; without them a service
+    # that fails to start leaves no trace.
+    CI_DEBUG_SERVICES: 'true'
+    OBJECTS_INTEGRATION: '1'
+    PGVECTOR_DATABASE_URL: 'postgres://phantoms:ci-only-password@pgvector:5432/phantoms_test'
+    S3_ENDPOINT: 'http://seaweedfs:8333'
+    S3_ACCESS_KEY: 'ci-only-access'
+    S3_SECRET_KEY: 'ci-only-secret'
+  timeout: 15m
+  script:
+    - bun --version
+    - bun install --frozen-lockfile
+    # The services start concurrently with this job. Wait for each one to
+    # answer before testing; a service that never comes up fails the job.
+    - |
+      bun -e '
+        const checks = {
+          pgvector: () => Bun.connect({ hostname: "pgvector", port: 5432, socket: { data() {}, open(c) { c.end(); } } }),
+          seaweedfs: () => fetch("http://seaweedfs:9333/cluster/status").then((r) => { if (!r.ok) throw new Error(String(r.status)); }),
+        };
+        for (const [name, check] of Object.entries(checks)) {
+          let ok = false;
+          for (let i = 1; i <= 60 && !ok; i++) {
+            try { await check(); ok = true; } catch { if (i % 5 === 0) console.log(`waiting for ${name} (${i}/60)`); await Bun.sleep(2000); }
+          }
+          if (!ok) { console.error(`${name} did not become ready`); process.exit(1); }
+          console.log(`${name} ready`);
+        }
+      '
+    - bun run db:migrate:vector
+    - bun test packages/db apps/api/test/retrieval.integration.test.ts
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+      allow_failure: true
+
 # Check the Dockerfile on merge requests without privileged execution or
 # registry credentials. A static lint catches syntax and common image mistakes
 # while keeping untrusted code on an unprivileged runner. A full
@@ -162,7 +271,7 @@ dockerfile-lint-mr:
 build:
   extends: .build:buildkit
   variables:
-    BUILD_ARGS: 'BUN_IMAGE=${DOCKERHUB_PROXY}/oven/bun:1.4.2-slim'
+    BUILD_ARGS: 'BUN_IMAGE=${DOCKERHUB_PROXY}/oven/bun:1.4.4-slim'
     # A new build attempt gets its own tag, so a manual retry cannot move the
     # image reference already verified by an earlier attempt in this pipeline.
     IMAGE_TAG: '${CI_COMMIT_SHORT_SHA}-${CI_PIPELINE_IID}-${CI_JOB_ID}'

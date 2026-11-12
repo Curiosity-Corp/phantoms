@@ -4,7 +4,7 @@ Contributions are welcome. Keep the starter small, runnable with Bun, and clear 
 
 ## Local workflow
 
-1. Install Bun 1.4.2 and Docker Compose.
+1. Install Bun 1.4.4 and Docker Compose.
 2. Follow [Getting started](docs/getting-started.md).
 3. Create a focused branch and make the smallest useful change.
 4. Add or update deterministic coverage and documentation where behavior changes.

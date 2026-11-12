@@ -1,6 +1,16 @@
 import { serveStatic } from '@hono/bun';
 import { createDatabase, createTaskStore } from '@phantoms/db';
 import { createApp } from './app';
+import { createLogger, isLogLevel } from './logger';
+import { createTelemetry } from './telemetry';
+
+const logLevel = Bun.env.LOG_LEVEL?.trim().toLowerCase() || 'info';
+if (!isLogLevel(logLevel)) {
+  throw new Error('LOG_LEVEL must be one of debug, info, warn or error.');
+}
+const logger = createLogger({ level: logLevel });
+// Off unless OTEL_EXPORTER_OTLP_ENDPOINT is set; see docs/recommended-tooling.md.
+const telemetry = createTelemetry({ env: Bun.env });
 
 const databaseUrl = Bun.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -21,6 +31,8 @@ const app = createApp({
   apiToken,
   tasks: createTaskStore(db),
   webOrigin: Bun.env.WEB_ORIGIN ?? 'http://localhost:3000',
+  logger,
+  tracerProvider: telemetry.tracerProvider,
 });
 
 if (Bun.env.SERVE_STATIC_WEB === '1') {
@@ -36,26 +48,30 @@ const server = Bun.serve({
   port,
 });
 
-console.info(`PHANTOMS API listening on http://${host}:${server.port}`);
+logger.info('listening', {
+  host,
+  port: server.port,
+  tracing: telemetry.tracerProvider !== undefined,
+});
 
 let shutdownPromise: Promise<void> | undefined;
 
 function shutdown(signal: string): Promise<void> {
   if (shutdownPromise) {
-    console.warn(
-      `Received ${signal} while shutting down; closing active connections.`,
-    );
+    logger.warn('signal received while shutting down; closing connections', {
+      signal,
+    });
     void server.stop(true).catch((error: unknown) => {
-      console.error('Forced server shutdown failed', error);
+      logger.error('forced shutdown failed', { error });
     });
     return shutdownPromise;
   }
 
-  console.info(`Received ${signal}; draining active requests.`);
+  logger.info('signal received; draining active requests', { signal });
   const forceStopTimer = setTimeout(() => {
-    console.error('Graceful shutdown timed out; closing active connections.');
+    logger.error('graceful shutdown timed out; closing connections');
     void server.stop(true).catch((error: unknown) => {
-      console.error('Forced server shutdown failed', error);
+      logger.error('forced shutdown failed', { error });
     });
   }, 10_000);
 
@@ -64,6 +80,10 @@ function shutdown(signal: string): Promise<void> {
       await server.stop();
     } finally {
       clearTimeout(forceStopTimer);
+      // Flush queued spans, but never let that block closing the database.
+      await telemetry.shutdown().catch((error: unknown) => {
+        logger.error('telemetry flush failed', { error });
+      });
       await client.end({ timeout: 5 });
     }
   })();
@@ -74,7 +94,7 @@ function shutdown(signal: string): Promise<void> {
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
     void shutdown(signal).catch((error: unknown) => {
-      console.error('Graceful shutdown failed', error);
+      logger.error('graceful shutdown failed', { error });
     });
   });
 }

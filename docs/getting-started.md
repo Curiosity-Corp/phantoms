@@ -4,7 +4,7 @@ This walkthrough runs the Next.js web app, Hono API, and PostgreSQL locally. Bun
 
 ## Prerequisites
 
-- Bun 1.4.2
+- Bun 1.4.4
 - Docker Compose
 - Git
 
@@ -49,7 +49,10 @@ bun run lint
 bun run typecheck
 bun test
 bun run build
+bun run test:e2e
 ```
+
+`bun run test:e2e` runs the Playwright journeys against the build you just made. On a fresh machine install the pinned browser once with `bunx playwright install chromium`; after that it needs no network, database or secrets. Set `E2E_PORT` if port 4010 is taken.
 
 To validate migrations and database readiness:
 
@@ -58,9 +61,19 @@ bun run db:check
 curl --fail http://127.0.0.1:4000/readyz
 ```
 
+## Optional: retrieval and object storage
+
+Nothing above starts Milvus, SeaweedFS or pgvector. To try them, read [Retrieval and object storage](retrieval.md); the short form is:
+
+```sh
+export COMPOSE_PROJECT_NAME=phantoms
+docker compose --profile pgvector up -d --wait postgres-pgvector       # step 1: pgvector
+docker compose --profile retrieval --profile objects up -d --wait      # step 2: Milvus + SeaweedFS
+```
+
 ## AI adapter
 
-The `@phantoms/ai` package contains a small provider adapter, but no model call runs on startup. Configure `AI_BASE_URL`, `AI_MODEL`, and, when required, `AI_API_KEY` on the server before connecting this package to a user-facing workflow. Do not add model credentials to `NEXT_PUBLIC_*` variables.
+The `@phantoms/ai` package contains a small provider adapter, but no model call runs on startup. Configure `AI_BASE_URL`, `AI_MODEL`, and, when required, `AI_API_KEY` on the server before connecting this package to a user-facing workflow. Do not add model credentials to `NEXT_PUBLIC_*` variables. See [the AI layer](ai.md) for structured output, tools, the optional MCP client, budgets, and the fake adapter used in tests.
 
 ## Stop local services
 
@@ -81,4 +94,4 @@ docker compose down --volumes
 - **Port already in use:** change `API_PORT` or stop the process holding 4000; change the web port through the Next dev command if 3000 is occupied.
 - **Database unavailable:** check `docker compose ps`, `docker compose logs postgres`, and `DATABASE_URL` in `.env`.
 - **Migration fails:** confirm the database is healthy, then run `bun run db:migrate` again. Review migration files before applying them to valuable data.
-- **Frozen install fails:** verify Bun 1.4.2 and restore `bun.lock` from version control; do not regenerate the lockfile as an automatic fix.
+- **Frozen install fails:** verify Bun 1.4.4 and restore `bun.lock` from version control; do not regenerate the lockfile as an automatic fix.

@@ -1,6 +1,6 @@
 # Recommended supporting tools
 
-The original PHANTOMS proposal included a practical set of UI, validation, identity, search, observability, and test tools. Treat this as a menu with boundaries, not a requirement to install everything. The base repository intentionally chooses only the tools needed to make its small example work.
+This page is a menu of UI, validation, identity, search, observability, and test tools that fit PHANTOMS. It is current guidance, last checked on 2026-11-03; each tool's decision is being recorded in `docs/decisions.md`. Treat it as a menu with boundaries, not a requirement to install everything. The base repository intentionally chooses only the tools needed to make its small example work.
 
 ## UI and frontend
 
@@ -22,7 +22,7 @@ The starter uses plain CSS to keep its first build easy to inspect.
 | [Zod](https://zod.dev/) | Use for environment configuration, API input, and structured output validation. The starter demonstrates API payload validation. |
 | [Biome](https://biomejs.dev/) | One formatter/linter for this starter. Keep its CI check non-mutating; use a local write command only when intentionally formatting. |
 | [Drizzle ORM](https://orm.drizzle.team/) | Type-safe SQL-oriented access and reviewed schema migrations. Keep the generated SQL in version control. |
-| [Redis](https://redis.io/) | Add for measured cache, queue, or coordination needs. Define TTL, eviction, idempotency, and recovery behavior first. |
+| [Redis](https://redis.io/) or [Valkey](https://valkey.io/) | Add for measured cache, queue, or coordination needs. Define TTL, eviction, idempotency, and recovery behavior first. Redis 8 and Valkey are both current and differ in licence; see decision 009. |
 
 The repo uses Bun's built-in test runner to keep the default toolchain small. Use [Playwright](https://playwright.dev/) for deterministic browser flows when the application has user journeys worth protecting; run those tests in a browser-capable CI job.
 
@@ -40,7 +40,27 @@ Identity and search are not configured in this starter because the right realm, 
 - Emit structured, redacted logs with request IDs.
 - Define latency, error, saturation, and availability signals for the service's actual SLOs.
 - Use OpenTelemetry protocol where runtime instrumentation is proven for the selected Bun and library versions.
+
+**What this starter implements.** The API (`apps/api`) writes one JSON object per line on stdout (`LOG_LEVEL` sets the threshold). Every response carries an `X-Request-Id` header: a safe inbound value is kept so IDs can span services, anything else is replaced by a new UUID. Each request logs its method, path (never the query string), status, duration and request ID, plus the trace and span IDs when tracing is on. Headers, bodies and error messages are never logged, and values under keys such as `authorization`, `cookie`, `token`, `password` or `api_key` are redacted as a backstop. Probe requests (`/healthz`, `/readyz`) log at `debug`.
+
+OpenTelemetry tracing is off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set. When set, `@hono/otel` records one server span per request and a batch processor sends spans to `<endpoint>/v1/traces` over OTLP/HTTP; `OTEL_SERVICE_NAME` names the service and `OTEL_EXPORTER_OTLP_HEADERS` carries credentials. The W3C `traceparent` header is honoured. Only traces are wired: metrics and OTLP logs are not exported, and the Node SDK's auto-instrumentation is not used.
+
+**Bun support, as tested.** `apps/api/test/telemetry.test.ts` runs under the pinned Bun release (see [version-policy.md](version-policy.md)) and shows that spans are produced for real requests, keep their parent when `traceparent` is sent, follow async work, and are exported by the real OTLP/HTTP exporter to a local collector. This covers the packages listed in version-policy.md on that Bun release only; re-run the tests on every Bun or OpenTelemetry bump rather than assuming support. It does not cover gRPC export, the Node SDK's automatic instrumentations, or a production collector. The starter uses the lean trace packages instead of `@opentelemetry/sdk-node`, which pulls in many exporters and instrumentations this app does not use.
 - Grafana, Mimir, Tempo, and Loki can provide dashboards, metrics, traces, and log aggregation for teams operating that stack. A managed observability service can be a better fit for a small app.
 - Avoid logging prompts, responses, credentials, session tokens, or personal data by default.
 
-The original proposal named [Grafana Mimir](https://grafana.com/oss/mimir/), [Grafana Tempo](https://grafana.com/oss/tempo/), and [Grafana Loki](https://grafana.com/oss/loki/) for those roles. These services are optional and not deployed by this starter.
+[Grafana Mimir](https://grafana.com/oss/mimir/), [Grafana Tempo](https://grafana.com/oss/tempo/), and [Grafana Loki](https://grafana.com/oss/loki/) fill those roles for teams that run that stack. These services are optional and not deployed by this starter.
+
+## Dated verdicts
+
+Every choice in the stack and in this menu was reviewed on **2026-11-03** against the latest stable releases. The outcome, the evidence and the trigger to review again are in [the architecture decisions](decisions.md): decisions 006 to 011 and the table of no-change verdicts. In short:
+
+| Area | Verdict on 2026-11-03 | Where |
+| --- | --- | --- |
+| Bun, Hono, Next.js (static export), Biome, TypeScript, Zod | Keep | Decisions 001, 004, 008 and the no-change table |
+| Turborepo | Keep, with Bun workspaces as the documented fallback | Decision 006 |
+| Drizzle ORM | Keep on 0.45.x until 1.0 is stable | Decision 007 |
+| AI SDK and the provider-neutral adapter | Keep and extend | Decision 011 |
+| OpenClaw, Milvus, SeaweedFS | Keep optional | No-change table |
+| Redis or Valkey | Optional; both named | Decision 009 |
+| Keycloak and other identity | Self-hosted OIDC example; identity is a per-app choice | Decision 010 |

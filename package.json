@@ -2,9 +2,9 @@
   "name": "phantoms-starter",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.4.2",
+  "packageManager": "bun@1.4.4",
   "engines": {
-    "bun": ">=1.4.2"
+    "bun": ">=1.4.4"
   },
   "workspaces": [
     "apps/*",
@@ -14,16 +14,25 @@
     "dev": "bun run --bun turbo run dev --parallel",
     "build": "bun run --bun turbo run build",
     "lint": "bun run --bun biome check .",
-    "typecheck": "bun run --bun turbo run typecheck",
+    "typecheck": "bun run --bun turbo run typecheck && bun run typecheck:e2e",
+    "typecheck:e2e": "bun run --bun tsc --noEmit -p e2e/tsconfig.json",
     "test": "bun test",
+    "test:e2e": "bun run --bun playwright test",
+    "check:versions": "bun run scripts/check-versions.ts",
+    "check:agents": "bun run scripts/check-agents.ts",
+    "check:public": "bun run scripts/check-public-tree.ts",
     "db:generate": "bun run --filter @phantoms/db db:generate",
     "db:migrate": "bun run --filter @phantoms/db db:migrate",
-    "db:check": "bun run --filter @phantoms/db db:check"
+    "db:check": "bun run --filter @phantoms/db db:check",
+    "db:generate:vector": "bun run --filter @phantoms/db db:generate:vector",
+    "db:migrate:vector": "bun run --filter @phantoms/db db:migrate:vector",
+    "db:check:vector": "bun run --filter @phantoms/db db:check:vector"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
-    "@types/bun": "1.4.2",
-    "turbo": "2.11.6",
+    "@biomejs/biome": "2.6.4",
+    "@playwright/test": "1.64.1",
+    "@types/bun": "1.4.4",
+    "turbo": "2.11.10",
     "typescript": "7.0.2"
   },
   "overrides": {

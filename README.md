@@ -2,6 +2,8 @@
 
 **A free, agent-ready learning stack for building modern TypeScript applications with Bun.**
 
+_Last verified: 2026-11-11_ (README, `AGENTS.md`, the architecture guide and the decision index checked against the code on `main`)
+
 PHANTOMS gives a person or an AI coding agent one coherent starting point for the application, data, AI, retrieval, and delivery decisions that otherwise get re-decided in every project. The repository is both a learning guide and a runnable starter: clone it, read `AGENTS.md`, follow the setup guide, and grow only the services the app needs.
 
 ## The stack
@@ -13,16 +15,28 @@ PHANTOMS gives a person or an AI coding agent one coherent starting point for th
 | **A** | **AI** | Provider-neutral model access behind a replaceable adapter |
 | **N** | [Next.js](https://nextjs.org/) | Web application and App Router |
 | **T** | [Turborepo](https://turborepo.dev/) | Task graph and monorepo caching |
-| **O** | [OpenClaw](https://github.com/openclaw/openclaw) | Optional agent runtime for scoped tool workflows |
-| **M** | [Milvus](https://milvus.io/) | Optional vector and hybrid retrieval |
-| **S** | [SeaweedFS](https://github.com/seaweedfs/seaweedfs) | Optional S3-compatible object storage |
+| **O** | [OpenClaw](https://github.com/openclaw/openclaw) | One example of an optional, separately deployed agent runtime (a personal or team assistant gateway) |
+| **M** | [Milvus](https://milvus.io/) | Optional vector and hybrid retrieval; start with pgvector, graduate to Milvus ([guide](docs/retrieval.md)) |
+| **S** | [SeaweedFS](https://github.com/seaweedfs/seaweedfs) | Optional S3-compatible object storage, runnable with `docker compose --profile objects up -d` |
 
-Bun is the required JavaScript runtime and package manager throughout this starter. The source spec's UI, validation, data, identity, search, and observability suggestions are recorded in [the architecture guide](docs/architecture.md), with clear guidance on what belongs in a first app and what should remain optional.
+Bun is the required JavaScript runtime and package manager for this starter's app workspace, CI and deployment image. Optional services that you deploy separately may bring their own runtime: OpenClaw, for example, is a Node application. The source spec's UI, validation, data, identity, search, and observability suggestions are recorded in [the architecture guide](docs/architecture.md), with clear guidance on what belongs in a first app and what should remain optional.
+
+## Variants
+
+PHANTOMS is a family, not one fixed stack. The **A** is always **AI**: model access behind a replaceable, provider-neutral adapter, never one vendor. Each variant keeps that definition.
+
+| Variant | State | Choose it when |
+| --- | --- | --- |
+| **PHANTOMS core** (this repository) | Runnable | You want the smallest TypeScript stack that runs: PostgreSQL, a Hono API, a static Next.js site and an AI adapter, all on Bun. |
+| **PHANTOMS+ web** | In modernisation | You need a fuller web product: a UI kit (Tailwind CSS 4 and shadcn/ui), accounts and sign-in, search. It starts from this core and adds those layers. |
+| **PHANTOMS TUI** | Planned, not built | Your product is a terminal or SSH application, written in Go with the Charm libraries. Its scope is written; there is no repository yet. |
+
+Which repositories hold each variant, and their final names, are still being decided. This table will be updated when they are.
 
 ## Why this helps
 
 - **A whole application shape:** the acronym connects the browser, API, database, AI adapter, agents, retrieval, and object storage.
-- **A smaller first step:** PostgreSQL, Hono, Next.js, and Bun are runnable here; Milvus, SeaweedFS, OpenClaw, identity, cache, and search are introduced only when a product needs them.
+- **A smaller first step:** PostgreSQL, Hono, Next.js, and Bun are runnable here; Milvus, SeaweedFS (both runnable behind optional Compose profiles), OpenClaw, identity, cache, and search are introduced only when a product needs them.
 - **AI-friendly project context:** `AGENTS.md` and the docs tell coding agents how the repository is organized, what constraints to keep, and how to prove a change works.
 - **Reproducible delivery:** the Bun lockfile, CI pipeline, security boundaries, and release checklist make verification part of the starter rather than an afterthought.
 - **Replaceable model access:** application code talks to an adapter and configuration, so model and hosting choices can change without rewriting product logic.
@@ -31,7 +45,7 @@ This is a learning starter, not a finished product or a claim that one stack fit
 
 ## Start here
 
-Prerequisites: [Bun 1.4.2](https://bun.sh/), Docker Compose, and Git. Use Bun commands for JavaScript tooling; do not substitute another JavaScript runtime or package manager.
+Prerequisites: [Bun 1.4.4](https://bun.sh/), Docker Compose, and Git. Use Bun commands for JavaScript tooling in this workspace; do not substitute another JavaScript runtime or package manager.
 
 ```sh
 git clone https://github.com/Curiosity-Corp/phantoms.git
@@ -55,21 +69,25 @@ For a single-container production shape, `Dockerfile` builds the static web outp
 bun install --frozen-lockfile
 bun run lint
 bun run typecheck
+bun run check:agents
 bun audit --audit-level high
 bun test
 bun run build
+bun run test:e2e
 ```
 
-Merge requests run the core checks, PostgreSQL integration tests, and blocking source and dependency scans through GitLab CI. On protected `main`, each build attempt publishes its own image tag to private Harbor and signs the exact build digest. A blocking gate requires signature verification, SBOM discovery, and a matching digest, then passes the verified image reference to smoke tests. It does not update a floating `latest` tag or deploy the image. See [CI/CD](docs/ci-cd.md) for Launch Sequence and the public GitLab baseline.
+Merge requests run the core checks, PostgreSQL integration tests, Playwright browser journeys in a pinned Playwright image, and blocking source and dependency scans through GitLab CI. On protected `main`, each build attempt publishes its own image tag to private Harbor and signs the exact build digest. A blocking gate requires signature verification, SBOM discovery, and a matching digest, then passes the verified image reference to smoke tests. It does not update a floating `latest` tag or deploy the image. See [CI/CD](docs/ci-cd.md) for Launch Sequence and the public GitLab baseline.
 
 ## Recommended versions
 
-The starter was refreshed on **2026-10-01**. Exact application package versions are pinned in `package.json` and `bun.lock`; [the version policy](docs/version-policy.md) records the current baseline and update cadence. Review security advisories and compatibility before each scheduled dependency update.
+The starter was refreshed on **2026-11-03**. Exact application package versions are pinned in `package.json` and `bun.lock`; [the version policy](docs/version-policy.md) records the current baseline and update cadence. Review security advisories and compatibility before each scheduled dependency update.
 
 ## Documentation
 
 - [Agent instructions](AGENTS.md)
+- Agent enforcement and tools: [hooks and permissions](docs/agents/hooks.md), [MCP servers](docs/agents/mcp.md), [task recipes](docs/agents/recipes.md)
 - [Architecture and optional services](docs/architecture.md)
+- [Retrieval and object storage: pgvector, Milvus, SeaweedFS](docs/retrieval.md)
 - [Recommended supporting tools](docs/recommended-tooling.md)
 - [Getting started](docs/getting-started.md)
 - [AI integration](docs/ai.md)
