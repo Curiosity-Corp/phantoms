@@ -37,3 +37,25 @@ Sources: [OpenClaw releases](https://github.com/openclaw/openclaw/releases), [Mi
 - Refresh Bun, framework, database, and deployment pins together only when local checks, CI, migration checks, and runtime smoke tests pass.
 - Pin container digests for production promotions. Version tags alone do not make production artifacts immutable.
 - Keep optional services out of the default local/CI path until their integration and restore procedures have tests.
+
+## Last reviewed
+
+Each component was last checked against its official release source on the date shown. The verdict and the reason are in [the architecture decisions](decisions.md). This table is updated whenever a component is reviewed; it is separate from the version tables above so a version bump does not hide when the verdict was last confirmed.
+
+| Component | Last reviewed | Verdict and decision |
+| --- | --- | --- |
+| Bun runtime | 2026-11-03 | Keep (001, no-change table) |
+| Turborepo | 2026-11-03 | Keep, justified (006) |
+| Next.js and React | 2026-11-03 | Keep, static export (004, no-change table) |
+| Hono | 2026-11-03 | Keep (no-change table) |
+| TypeScript | 2026-11-03 | Keep 7.0.2 (no-change table) |
+| Biome | 2026-11-03 | Keep, 2.6.x (no-change table) |
+| Zod | 2026-11-03 | Keep (008) |
+| Drizzle ORM | 2026-11-03 | Keep 0.45.x (007) |
+| AI SDK and adapter | 2026-11-03 | Keep and extend (011) |
+| PostgreSQL | 2026-11-03 | Keep, local Compose only (003) |
+| OpenClaw | 2026-11-03 | Keep optional (no-change table) |
+| Milvus | 2026-11-03 | Keep optional (no-change table) |
+| SeaweedFS | 2026-11-03 | Keep optional (no-change table) |
+| Redis or Valkey | 2026-11-03 | Optional, both named (009) |
+| Keycloak | 2026-11-03 | Self-hosted OIDC example (010) |

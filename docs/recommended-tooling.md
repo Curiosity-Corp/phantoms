@@ -22,7 +22,7 @@ The starter uses plain CSS to keep its first build easy to inspect.
 | [Zod](https://zod.dev/) | Use for environment configuration, API input, and structured output validation. The starter demonstrates API payload validation. |
 | [Biome](https://biomejs.dev/) | One formatter/linter for this starter. Keep its CI check non-mutating; use a local write command only when intentionally formatting. |
 | [Drizzle ORM](https://orm.drizzle.team/) | Type-safe SQL-oriented access and reviewed schema migrations. Keep the generated SQL in version control. |
-| [Redis](https://redis.io/) | Add for measured cache, queue, or coordination needs. Define TTL, eviction, idempotency, and recovery behavior first. |
+| [Redis](https://redis.io/) or [Valkey](https://valkey.io/) | Add for measured cache, queue, or coordination needs. Define TTL, eviction, idempotency, and recovery behavior first. Redis 8 and Valkey are both current and differ in licence; see decision 009. |
 
 The repo uses Bun's built-in test runner to keep the default toolchain small. Use [Playwright](https://playwright.dev/) for deterministic browser flows when the application has user journeys worth protecting; run those tests in a browser-capable CI job.
 
@@ -43,4 +43,18 @@ Identity and search are not configured in this starter because the right realm, 
 - Grafana, Mimir, Tempo, and Loki can provide dashboards, metrics, traces, and log aggregation for teams operating that stack. A managed observability service can be a better fit for a small app.
 - Avoid logging prompts, responses, credentials, session tokens, or personal data by default.
 
-The original proposal named [Grafana Mimir](https://grafana.com/oss/mimir/), [Grafana Tempo](https://grafana.com/oss/tempo/), and [Grafana Loki](https://grafana.com/oss/loki/) for those roles. These services are optional and not deployed by this starter.
+[Grafana Mimir](https://grafana.com/oss/mimir/), [Grafana Tempo](https://grafana.com/oss/tempo/), and [Grafana Loki](https://grafana.com/oss/loki/) fill those roles for teams that run that stack. These services are optional and not deployed by this starter.
+
+## Dated verdicts
+
+Every choice in the stack and in this menu was reviewed on **2026-11-03** against the latest stable releases. The outcome, the evidence and the trigger to review again are in [the architecture decisions](decisions.md): decisions 006 to 011 and the table of no-change verdicts. In short:
+
+| Area | Verdict on 2026-11-03 | Where |
+| --- | --- | --- |
+| Bun, Hono, Next.js (static export), Biome, TypeScript, Zod | Keep | Decisions 001, 004, 008 and the no-change table |
+| Turborepo | Keep, with Bun workspaces as the documented fallback | Decision 006 |
+| Drizzle ORM | Keep on 0.45.x until 1.0 is stable | Decision 007 |
+| AI SDK and the provider-neutral adapter | Keep and extend | Decision 011 |
+| OpenClaw, Milvus, SeaweedFS | Keep optional | No-change table |
+| Redis or Valkey | Optional; both named | Decision 009 |
+| Keycloak and other identity | Self-hosted OIDC example; identity is a per-app choice | Decision 010 |
