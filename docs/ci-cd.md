@@ -15,7 +15,7 @@ document, including a local container build and runtime smoke check.
 Use the following order for a real PHANTOMS application:
 
 1. Install the exact dependency graph with `bun install --frozen-lockfile`.
-2. Run formatting, type checks, and schema/migration consistency checks.
+2. Run formatting, type checks, the agent-instruction check (`bun run check:agents`, which keeps `AGENTS.md` within its size budget and its commands and links valid), and schema/migration consistency checks.
 3. Apply migrations and run database integration tests against a disposable
    PostgreSQL service; run the production build before an image is built.
 4. Scan source and dependencies for secrets and known vulnerabilities.
@@ -125,6 +125,7 @@ variables:
     bun run lint &&
     bun run typecheck &&
     bun run check:versions &&
+    bun run check:agents &&
     bun run db:check
   TEST_COMMANDS: >-
     bun install --frozen-lockfile &&
@@ -191,6 +192,11 @@ typecheck:
   stage: verify
   script:
     - bun run typecheck
+
+check-agents:
+  stage: verify
+  script:
+    - bun run check:agents
 
 test:
   stage: verify
@@ -328,6 +334,7 @@ uses different tools:
 | `bun run lint` | formatting and static checks |
 | `bun run typecheck` | TypeScript and generated-type validation |
 | `bun run check:versions` | Versions in `docs/version-policy.md` match the manifests |
+| `bun run check:agents` | `AGENTS.md` size budget, command and link check |
 | `bun test` | deterministic unit and integration tests |
 | `bun run build` | production build, when the app has a build step |
 | `bun run db:check` | schema and migration validation |

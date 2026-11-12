@@ -17,6 +17,7 @@
     "typecheck": "bun run --bun turbo run typecheck",
     "test": "bun test",
     "check:versions": "bun run scripts/check-versions.ts",
+    "check:agents": "bun run scripts/check-agents.ts",
     "db:generate": "bun run --filter @phantoms/db db:generate",
     "db:migrate": "bun run --filter @phantoms/db db:migrate",
     "db:check": "bun run --filter @phantoms/db db:check"

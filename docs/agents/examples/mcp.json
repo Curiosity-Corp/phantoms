@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "docs": {
+      "command": "bunx",
+      "args": ["@upstash/context7-mcp@4.5.0"]
+    }
+  }
+}
