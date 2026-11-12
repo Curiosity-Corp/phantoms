@@ -5,9 +5,9 @@ This small decision log records choices that coding agents should not reverse ca
 ## 001 — Bun is the required JavaScript runtime
 
 **Date:** 2026-10-01
-**Decision:** Use a pinned Bun release for install, scripts, development, and the Hono service. Commit the text lockfile and use frozen installs.
+**Decision:** Use a pinned Bun release for install, scripts, development, and the Hono service across the app workspace, CI, and the deployment image. Commit the text lockfile and use frozen installs. A separately deployed optional service, such as OpenClaw (a Node application), may use its own runtime outside the workspace and the image.
 **Reason:** Bun is an explicit PHANTOMS preference and gives the learning starter one consistent toolchain.
-**Tradeoff:** Some ecosystem packages document a different runtime as their supported server environment. Verify each selected package and hosting path under the pinned Bun release. This starter keeps the Next.js production output static and uses Bun for the build, avoiding an unverified framework server runtime in production.
+**Tradeoff:** Some ecosystem packages document a different runtime as their supported server environment, and optional services bring their own. Verify each selected package and hosting path under the pinned Bun release. This starter keeps the Next.js production output static and uses Bun for the build, avoiding an unverified framework server runtime in production.
 
 The web package includes the framework's `@types/node` declarations solely because its TypeScript checker requires those type definitions. That package is not an executable runtime dependency; all scripts, API execution, and CI jobs use Bun.
 

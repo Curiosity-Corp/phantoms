@@ -65,6 +65,7 @@ variables:
     bun run typecheck &&
     bun run check:versions &&
     bun run check:agents &&
+    bun run check:public &&
     bun run db:check
   TEST_COMMANDS: >-
     bun install --frozen-lockfile &&

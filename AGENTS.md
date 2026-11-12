@@ -33,8 +33,8 @@ bun audit --audit-level high    # dependency audit
 
 ## Repository rules
 
-- Bun is the required runtime and package manager. Use `bun`, `bunx`, `bun install --frozen-lockfile`, and `bun run`. Keep `packageManager` pinned and commit `bun.lock`.
-- Do not add a second JavaScript runtime or package manager to the development, CI, or deployment path.
+- Bun is the required runtime and package manager for the app workspace (everything under `apps/` and `packages/`), for CI, and for the deployment image. Use `bun`, `bunx`, `bun install --frozen-lockfile`, and `bun run`. Keep `packageManager` pinned and commit `bun.lock`.
+- Do not add a second JavaScript runtime or package manager to the app workspace, CI, or the deployment image. A separately deployed optional service, such as OpenClaw (a Node application), may use its own runtime; it must not share the app's dependency tree or image.
 - Keep PHANTOMS' **A** provider-neutral. Put model-provider setup behind an adapter and server-side environment configuration. Never expose model credentials in browser code.
 - Keep OpenClaw optional and isolated. No agent tools, plugins, shell access, or broad permissions are enabled by default.
 - Keep Milvus and SeaweedFS optional until retrieval or object-storage requirements justify their operational cost.

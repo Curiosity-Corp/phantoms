@@ -1,6 +1,6 @@
 # Recommended supporting tools
 
-The original PHANTOMS proposal included a practical set of UI, validation, identity, search, observability, and test tools. Treat this as a menu with boundaries, not a requirement to install everything. The base repository intentionally chooses only the tools needed to make its small example work.
+This page is a menu of UI, validation, identity, search, observability, and test tools that fit PHANTOMS. It is current guidance, last checked on 2026-11-03; each tool's decision is being recorded in `docs/decisions.md`. Treat it as a menu with boundaries, not a requirement to install everything. The base repository intentionally chooses only the tools needed to make its small example work.
 
 ## UI and frontend
 
