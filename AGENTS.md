@@ -37,7 +37,7 @@ bun audit --audit-level high    # dependency audit
 - Do not add a second JavaScript runtime or package manager to the app workspace, CI, or the deployment image. A separately deployed optional service, such as OpenClaw (a Node application), may use its own runtime; it must not share the app's dependency tree or image.
 - Keep PHANTOMS' **A** provider-neutral. Put model-provider setup behind an adapter and server-side environment configuration. Never expose model credentials in browser code.
 - Keep OpenClaw optional and isolated. No agent tools, plugins, shell access, or broad permissions are enabled by default.
-- Keep Milvus and SeaweedFS optional until retrieval or object-storage requirements justify their operational cost.
+- Keep Milvus and SeaweedFS optional until retrieval or object-storage requirements justify their operational cost. For semantic search start with pgvector (`@phantoms/db/vector`, `docs/retrieval.md`); optional services stay behind Compose profiles and opt-in tests (`PGVECTOR_DATABASE_URL`, `OBJECTS_INTEGRATION=1`, `RETRIEVAL_INTEGRATION=1`) so the default `bun test` needs none of them.
 - Validate request data at API boundaries, keep database access in `packages/db`, and use reviewed migrations for schema changes.
 - Never commit secrets, production connection strings, user data, generated credentials, or private environment files.
 - Do not reverse or quietly bypass a decision in `docs/decisions.md`. To change one, add a superseding entry with evidence and a "revisit when" trigger.
@@ -64,7 +64,7 @@ bun run build
 bun run test:e2e
 ```
 
-`bun run test:e2e` drives the built static web app in a browser, so run it after `bun run build`. It needs the pinned Playwright browsers (`bunx playwright install chromium` once, or use the pinned CI image) but no database, model provider or network. For database changes, also run `bun run db:check` against a disposable local database. For browser-facing journeys, add deterministic Playwright coverage in `e2e/` (files end in `.e2e.ts`, never `.spec.ts`, so `bun test` does not load them). Do not put live model calls or mutable external services in unit or e2e tests.
+`bun run test:e2e` drives the built static web app in a browser, so run it after `bun run build`. It needs the pinned Playwright browsers (`bunx playwright install chromium` once, or use the pinned CI image) but no database, model provider or network. For database changes, also run `bun run db:check` against a disposable local database. Vector schema changes use the separate `db:*:vector` scripts and need the `pgvector` profile. For browser-facing journeys, add deterministic Playwright coverage in `e2e/` (files end in `.e2e.ts`, never `.spec.ts`, so `bun test` does not load them). Do not put live model calls or mutable external services in unit or e2e tests.
 
 ## Reporting
 

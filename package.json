@@ -23,7 +23,10 @@
     "check:public": "bun run scripts/check-public-tree.ts",
     "db:generate": "bun run --filter @phantoms/db db:generate",
     "db:migrate": "bun run --filter @phantoms/db db:migrate",
-    "db:check": "bun run --filter @phantoms/db db:check"
+    "db:check": "bun run --filter @phantoms/db db:check",
+    "db:generate:vector": "bun run --filter @phantoms/db db:generate:vector",
+    "db:migrate:vector": "bun run --filter @phantoms/db db:migrate:vector",
+    "db:check:vector": "bun run --filter @phantoms/db db:check:vector"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",

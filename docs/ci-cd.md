@@ -248,6 +248,33 @@ database-integration:
     - bun run db:migrate
     - bun test
 
+# Optional: pgvector and SeaweedFS (S3). Run it from a pipeline schedule or by
+# hand; see docs/retrieval.md. Wait for each service before testing (the
+# `pgvector-objects-integration` job in .gitlab-ci.yml does). To add Milvus on
+# a runner that lets the Milvus image run as its own user (uid 999), add the
+# etcd and Milvus services, a wait for both, and RETRIEVAL_INTEGRATION=1.
+pgvector-objects-integration:
+  stage: verify
+  image: oven/bun:1.4.4-slim
+  services:
+    - name: pgvector/pgvector:0.8.6-pg18
+      alias: pgvector
+    - name: chrislusf/seaweedfs:4.48
+      alias: seaweedfs
+      command: ['server', '-dir=/data', '-s3', '-s3.port=8333']
+  variables:
+    OBJECTS_INTEGRATION: '1'
+    PGVECTOR_DATABASE_URL: 'postgres://phantoms:ci-only-password@pgvector:5432/phantoms_test'
+    S3_ENDPOINT: 'http://seaweedfs:8333'
+  script:
+    - bun run db:migrate:vector
+    - bun test packages/db apps/api/test/retrieval.integration.test.ts
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+      allow_failure: true
+
 db-check:
   stage: verify
   script:
@@ -365,6 +392,7 @@ uses different tools:
 | `bun run build` | production build, when the app has a build step |
 | `bun run db:check` | schema and migration validation |
 | `database-integration` | apply migrations and exercise database access with disposable PostgreSQL |
+| `pgvector-objects-integration` | optional: pgvector search and the SeaweedFS S3 API in disposable services, on a schedule or by hand ([retrieval.md](retrieval.md)) |
 | `bun run test:e2e` | Playwright browser journeys against the built static web app (run `bun run build` first); needs browsers, not network |
 
 CI owns the order and environment; the repository owns the commands. Keep
@@ -389,8 +417,28 @@ use here, because `test:e2e` runs the runner with `bun run --bun`. The job
 installs the Bun release named by `packageManager` (the Playwright image has no
 Bun) and fails when the installed `@playwright/test` version differs from
 `PLAYWRIGHT_VERSION`, so the browsers and the library cannot drift apart. Bump
-`@playwright/test` and `PLAYWRIGHT_VERSION` together. See decision 006 in
+`@playwright/test` and `PLAYWRIGHT_VERSION` together. See decision 012 in
 [decisions.md](decisions.md).
+
+### Optional retrieval job
+
+`pgvector-objects-integration` starts pgvector and SeaweedFS as job services,
+applies the separate vector migrations, and runs the tests that
+`OBJECTS_INTEGRATION=1` and `PGVECTOR_DATABASE_URL` enable: vector insert and
+search, and an S3 write, read and delete. It is not part of the default path: it
+runs on pipeline schedules and can be started manually on a merge request
+(`allow_failure: true`, so an unstarted job does not block the merge). Create a
+schedule under CI/CD settings. A failing scheduled run shows as a failed
+pipeline. A scheduled pipeline on the default branch also runs that branch's
+other jobs, including the image build.
+
+Milvus is not in this job. On the shared runner pool every job container starts
+as uid 1000 and a per-service `user` is refused, while the Milvus image can only
+be run by its own uid 999 (the service exits with "Permission denied"). Milvus
+is therefore proved locally with `RETRIEVAL_INTEGRATION=1`
+([retrieval.md](retrieval.md)). Running it in CI needs a runner that allows the
+service to run as uid 999, or an image rebuilt to run as an arbitrary user; that
+is a runner or platform decision.
 
 ## Promotion and operations checklist
 
