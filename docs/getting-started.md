@@ -49,7 +49,10 @@ bun run lint
 bun run typecheck
 bun test
 bun run build
+bun run test:e2e
 ```
+
+`bun run test:e2e` runs the Playwright journeys against the build you just made. On a fresh machine install the pinned browser once with `bunx playwright install chromium`; after that it needs no network, database or secrets. Set `E2E_PORT` if port 4010 is taken.
 
 To validate migrations and database readiness:
 

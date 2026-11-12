@@ -14,8 +14,10 @@
     "dev": "bun run --bun turbo run dev --parallel",
     "build": "bun run --bun turbo run build",
     "lint": "bun run --bun biome check .",
-    "typecheck": "bun run --bun turbo run typecheck",
+    "typecheck": "bun run --bun turbo run typecheck && bun run typecheck:e2e",
+    "typecheck:e2e": "bun run --bun tsc --noEmit -p e2e/tsconfig.json",
     "test": "bun test",
+    "test:e2e": "bun run --bun playwright test",
     "check:versions": "bun run scripts/check-versions.ts",
     "check:agents": "bun run scripts/check-agents.ts",
     "check:public": "bun run scripts/check-public-tree.ts",
@@ -25,6 +27,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",
+    "@playwright/test": "1.64.1",
     "@types/bun": "1.4.4",
     "turbo": "2.11.10",
     "typescript": "7.0.2"

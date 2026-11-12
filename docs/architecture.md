@@ -41,7 +41,7 @@ The runnable starter includes PostgreSQL, a Hono API, a static Next.js site, and
 | User search | Relational filtering is no longer the right search experience. | Meilisearch; define index synchronization and deletion behavior. |
 | Retrieval | Semantic/hybrid search improves a tested workflow. | Milvus, embeddings, and an object store such as SeaweedFS. Track source IDs, authorization, freshness, and deletion through every index. |
 | Agents | A product has bounded work that benefits from tools or multi-step orchestration. | An agent runtime such as OpenClaw, deployed separately, calling the app through a narrow authenticated API or MCP server with per-agent tools, resource limits, audit records, and a human approval step for consequential actions. |
-| Observability | The app has an operational target and can act on telemetry. | Metrics, structured logs, traces, alerts, and dashboards. Avoid sending secrets or personal content in telemetry. |
+| Observability | The app has an operational target and can act on telemetry. | Metrics, structured logs, traces, alerts, and dashboards. Avoid sending secrets or personal content in telemetry. The starter already emits JSON logs with request IDs and has opt-in OTLP traces; see [recommended tooling](recommended-tooling.md#observability). |
 
 Do not adopt every optional service just because it appears in the acronym. Every stateful service adds security, cost, capacity, backup, upgrade, and recovery work.
 

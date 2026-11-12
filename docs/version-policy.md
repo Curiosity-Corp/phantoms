@@ -16,9 +16,12 @@
 | Biome | 2.6.4 | Lint and format for code and JSON. Markdown and YAML are excluded in `biome.json` so docs are not reformatted by a tool upgrade. |
 | Drizzle ORM | 0.45.4 | Query builder and migration tool in `packages/db` (Drizzle Kit 0.31.11). |
 | postgres.js | 4.0.0 | PostgreSQL driver, a new major version taken in this refresh. The database integration job in CI runs against a real PostgreSQL service. |
+| Playwright | 1.64.1 | `@playwright/test` for `bun run test:e2e`. CI uses the matching `mcr.microsoft.com/playwright:v1.64.1-noble` image; `PLAYWRIGHT_VERSION` in `.gitlab-ci.yml` must equal this version. |
+| `@hono/otel` | 1.2.0 | Per-request server spans for Hono; opt-in, see recommended-tooling.md. |
+| OpenTelemetry JS | API 1.9.1; SDK packages 2.12.0; OTLP exporter 0.223.0 | Trace packages only, on the 2.x line (all published at least two weeks before 2026-11-03). The API stays below 1.10 because the 0.223 packages declare `<1.10`. The 3.0 major line, released 2026-10-20 (about two weeks old), is deliberately not taken yet; `@hono/otel` 1.3.0 (2026-10-27) is also newer than two weeks. |
 | PostgreSQL container | 18.6 | Local Compose only; production should pin an approved image digest. |
 
-Official sources, opened on 2026-11-03: [Bun releases](https://github.com/oven-sh/bun/releases), [Turborepo support policy](https://turborepo.dev/docs/support-policy), [Next.js September 2026 security release](https://nextjs.org/blog/september-2026-security-release), [Hono releases](https://github.com/honojs/hono/releases), [Next.js support policy](https://nextjs.org/support-policy), [AI SDK releases](https://github.com/vercel/ai/releases), [Biome](https://github.com/biomejs/biome/releases), [Drizzle](https://github.com/drizzle-team/drizzle-orm/releases), and [PostgreSQL versioning](https://www.postgresql.org/support/versioning/).
+Official sources, opened on 2026-11-03: [Bun releases](https://github.com/oven-sh/bun/releases), [Turborepo support policy](https://turborepo.dev/docs/support-policy), [Next.js September 2026 security release](https://nextjs.org/blog/september-2026-security-release), [Hono releases](https://github.com/honojs/hono/releases), [Next.js support policy](https://nextjs.org/support-policy), [AI SDK releases](https://github.com/vercel/ai/releases), [Biome](https://github.com/biomejs/biome/releases), [Drizzle](https://github.com/drizzle-team/drizzle-orm/releases), [Playwright releases](https://github.com/microsoft/playwright/releases), [OpenTelemetry JS releases](https://github.com/open-telemetry/opentelemetry-js/releases), [`@hono/otel`](https://www.npmjs.com/package/@hono/otel), and [PostgreSQL versioning](https://www.postgresql.org/support/versioning/).
 
 ## Optional service reference pins
 

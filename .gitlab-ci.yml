@@ -74,6 +74,8 @@ variables:
   IMAGE_NAME: 'phantoms'
   HARBOR_PROJECT: 'apps'
   NEXT_TELEMETRY_DISABLED: '1'
+  # Playwright library and browser image move together; see docs/ci-cd.md.
+  PLAYWRIGHT_VERSION: '1.64.1'
 
 # The shared SAST job defaults to advisory findings. Make source and secret
 # findings blocking for this learning repository.
@@ -138,6 +140,44 @@ database-integration:
       test "$ready" = 1
     - bun run db:migrate
     - bun test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# Browser journeys (bun run test:e2e) against the built static web app, in the
+# pinned Playwright image so no browser is downloaded during the job. The
+# image has no Bun, so the job installs the exact release named by
+# packageManager from the npm registry. Playwright's own runner is started
+# with `bun run --bun`; the image's Node binary is not used. The journeys use
+# an in-memory task store: no PostgreSQL service and no other network.
+e2e:
+  stage: preflight
+  image: 'mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-noble'
+  variables:
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+  script:
+    - |
+      BUN_VERSION="$(sed -n 's/.*"packageManager": "bun@\([0-9.]*\)".*/\1/p' package.json)"
+      test -n "$BUN_VERSION"
+      # The job user cannot write to the image's global prefix, so install
+      # into a temporary prefix and put it on PATH for the rest of the script.
+      npm install --global --prefix /tmp/bun-npm "bun@${BUN_VERSION}"
+      export PATH="/tmp/bun-npm/bin:${PATH}"
+    - bun --version
+    - bun install --frozen-lockfile
+    # The image tag and the library must be the same Playwright release.
+    - test "$(bun run --bun playwright --version)" = "Version ${PLAYWRIGHT_VERSION}"
+    - bun run build
+    - bun run test:e2e
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - playwright-report/
+      - test-results/
+    reports:
+      junit: test-results/e2e-junit.xml
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH =~ /^renovate\//'

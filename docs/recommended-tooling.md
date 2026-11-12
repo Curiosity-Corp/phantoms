@@ -40,6 +40,12 @@ Identity and search are not configured in this starter because the right realm, 
 - Emit structured, redacted logs with request IDs.
 - Define latency, error, saturation, and availability signals for the service's actual SLOs.
 - Use OpenTelemetry protocol where runtime instrumentation is proven for the selected Bun and library versions.
+
+**What this starter implements.** The API (`apps/api`) writes one JSON object per line on stdout (`LOG_LEVEL` sets the threshold). Every response carries an `X-Request-Id` header: a safe inbound value is kept so IDs can span services, anything else is replaced by a new UUID. Each request logs its method, path (never the query string), status, duration and request ID, plus the trace and span IDs when tracing is on. Headers, bodies and error messages are never logged, and values under keys such as `authorization`, `cookie`, `token`, `password` or `api_key` are redacted as a backstop. Probe requests (`/healthz`, `/readyz`) log at `debug`.
+
+OpenTelemetry tracing is off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set. When set, `@hono/otel` records one server span per request and a batch processor sends spans to `<endpoint>/v1/traces` over OTLP/HTTP; `OTEL_SERVICE_NAME` names the service and `OTEL_EXPORTER_OTLP_HEADERS` carries credentials. The W3C `traceparent` header is honoured. Only traces are wired: metrics and OTLP logs are not exported, and the Node SDK's auto-instrumentation is not used.
+
+**Bun support, as tested.** `apps/api/test/telemetry.test.ts` runs under the pinned Bun release (see [version-policy.md](version-policy.md)) and shows that spans are produced for real requests, keep their parent when `traceparent` is sent, follow async work, and are exported by the real OTLP/HTTP exporter to a local collector. This covers the packages listed in version-policy.md on that Bun release only; re-run the tests on every Bun or OpenTelemetry bump rather than assuming support. It does not cover gRPC export, the Node SDK's automatic instrumentations, or a production collector. The starter uses the lean trace packages instead of `@opentelemetry/sdk-node`, which pulls in many exporters and instrumentations this app does not use.
 - Grafana, Mimir, Tempo, and Loki can provide dashboards, metrics, traces, and log aggregation for teams operating that stack. A managed observability service can be a better fit for a small app.
 - Avoid logging prompts, responses, credentials, session tokens, or personal data by default.
 

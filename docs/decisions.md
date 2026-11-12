@@ -106,6 +106,13 @@ Each row below was checked on 2026-11-03 and needs no new decision. "Revisit whe
 | Milvus (M) | Keep optional | v3.0.5 is the latest release ([releases](https://github.com/milvus-io/milvus/releases), 2026-10-30). A PostgreSQL-first retrieval step (pgvector) is planned in issue #9 and is not decided here. | Issue #9 lands, or an app has a retrieval workload that PostgreSQL cannot serve. |
 | SeaweedFS (S) | Keep optional | 4.52 is the latest release ([releases](https://github.com/seaweedfs/seaweedfs/releases), 2026-11-02), Apache-2.0, actively pushed. MinIO's repository is [archived and read-only](https://github.com/minio/minio) (the GitHub banner reads 25 April 2026), which supports a non-MinIO default. | An app needs object storage, at which point S3 behaviour is tested with the chosen client. |
 
+## 012 — Observability and browser tests are small, opt-in and pinned
+
+**Date:** 2026-11-03
+**Decision:** The API writes redacted JSON logs with a request ID on every response. OpenTelemetry trace export is off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set, and uses `@hono/otel` with the lean trace packages instead of `@opentelemetry/sdk-node`. `bun test` stays the unit and integration runner (Vitest is not added). Browser journeys use Playwright, run through `bun run test:e2e` against the built static app served with an in-memory task store, and CI runs them in a pinned `mcr.microsoft.com/playwright` image whose tag equals the `@playwright/test` version.
+**Reason:** One runner and few dependencies keep the starter inspectable. Tests that need no database, model provider or network run anywhere. A pinned image avoids downloading browsers on every CI run and keeps browser and library in step. New packages were pinned at releases at least two weeks old on the review date, staying on the OpenTelemetry 2.x line rather than the just-released 3.0 major.
+**Tradeoff:** Playwright's runner is started with `bun run --bun`; Playwright documents Node as its supported runtime, so this is verified here under the pinned Bun release and must be re-checked on each Bun or Playwright bump. The Playwright image also contains a Node binary and the job installs Bun from the npm registry into it; neither is part of the app or the deployment image. The e2e task journey calls the API from the page because the starter has no task screen. Only traces are exported; metrics and OTLP logs are not.
+
 ## Superseding a decision
 
 An entry in this log is not edited to change its outcome. To reverse or replace one, add a new entry that names the one it supersedes, give its date, evidence and "revisit when" trigger, and mark the old entry with a one-line "Superseded by NNN" note. Coding agents must not reverse a decision without such an entry.
